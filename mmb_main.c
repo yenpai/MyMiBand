@@ -4,35 +4,12 @@
 #include <unistd.h>
 #include <getopt.h>  
 
-#include "mmb_user_info.h"
+#include "mmb_util.h"
+#include "mmb_ctx.h"
 
-#define CMD_BUFFER_SIZE     512
-#define CMD_GATTTOOL_PATH   "/usr/bin/gatttool"
+static MMB_CTX g_mmb_ctx;
 
-#define RESPONSE_NOTIFICATION_STR "Notification"
-
-#define MIBAND_CHAR_HND_USERINFO        0x0019
-#define MIBAND_CHAR_HND_SENSOR_DATA     0x0031
-#define MIBAND_CHAR_HND_SENSOR_NOTIFY   0x0032
-
-extern FILE *popen(const char *command, const char *type);
-extern int pclose(FILE *stream);
-
-static char g_mmb_hci_dev[6];
-static char g_mmb_mac[18];
-static struct mmb_user_info_s g_mmb_user_info;
-
-static int bytes_to_hex_str(char * out, uint8_t * in, size_t size)
-{
-    size_t i;
-    char *p = out;
-    for (i=0;i<size;i++)
-        p += sprintf(p, "%02x", in[i]);
-    *p = '\0';
-    return (p - out);
-}
-
-static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t size)
+static int mmb_send_gatt_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t size)
 {
     char cmd[CMD_BUFFER_SIZE];
     char buf[CMD_BUFFER_SIZE];
@@ -44,44 +21,64 @@ static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t 
 
     snprintf(cmd, CMD_BUFFER_SIZE, 
             "%s -i %s -b %s --char-write-req -a 0x%04x -n %s;", 
-            CMD_GATTTOOL_PATH, g_mmb_hci_dev, g_mmb_mac, hnd, buf);
+            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, hnd, buf);
     printf("[CMD] %s\n", cmd);
 
     return system(cmd);
 } 
 
-int mmb_send_user_info(struct mmb_user_info_s * user_info)
+int mmb_send_user_info()
 {
-    return mmb_gatt_send_char_hnd_write_req(
+    uint8_t byte;
+
+    // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
+    byte = atol(g_mmb_ctx.miband_mac + strlen(g_mmb_ctx.miband_mac) - 2) & 0xFF;
+    g_mmb_ctx.user_info.code = crc8(0x00, g_mmb_ctx.user_info.data, sizeof(g_mmb_ctx.user_info.data) - 1) ^ byte;
+
+    return mmb_send_gatt_char_hnd_write_req(
             MIBAND_CHAR_HND_USERINFO, 
-            user_info->data, 
-            sizeof(user_info->data));
+            g_mmb_ctx.user_info.data, 
+            sizeof(g_mmb_ctx.user_info.data));
 }
 
-int mmb_enable_sensor_notify()
+int mmb_send_sensor_notify_disable()
 {
     int ret = 0;
     uint8_t value[2];
 
-    // Disable
+    // Disable Sensor Data
     value[0] = 0x00;
     value[1] = 0x00;
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
+    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
     if (ret != 0)
         return ret;
 
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
+    // Disable Sensor Notify
+    value[0] = 0x00;
+    value[1] = 0x00;
+    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
     if (ret != 0)
         return ret;
 
-    // Enable
+    return 0;
+}
+
+int mmb_send_sensor_notify_enable()
+{
+    int ret = 0;
+    uint8_t value[2];
+
+    // Enable Sensor Data
     value[0] = 0x02;
     value[1] = 0x00;
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
+    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
     if (ret != 0)
         return ret;
 
-    return mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
+    // Endbale Sensor Notify
+    value[0] = 0x02;
+    value[1] = 0x00;
+    return mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
 }
 
 static int mmb_gatt_listen_start()
@@ -100,14 +97,15 @@ int mmb_mainloop()
     memset(buf, 0, sizeof(buf));
 
     // Send USER_INFO
-    mmb_send_user_info(&g_mmb_user_info);
+    mmb_send_user_info();
 
     // Send Sense Data Notification Disable/Enable
-    mmb_enable_sensor_notify();
+    mmb_send_sensor_notify_disable();
+    mmb_send_sensor_notify_enable();
 
     // Start Listen
     snprintf(buf, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
-            CMD_GATTTOOL_PATH, g_mmb_hci_dev, g_mmb_mac, MIBAND_CHAR_HND_USERINFO);
+            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, MIBAND_CHAR_HND_USERINFO);
     printf("[CMD] %s\n", buf);
 
     // popen
@@ -145,37 +143,34 @@ int main(int argc, char *argv[])
     int ret, opt;
 
     // Default config
-    strncpy(g_mmb_hci_dev, "hci0", sizeof(g_mmb_hci_dev));
-    strncpy(g_mmb_mac, "88:0F:10:2A:5F:08", sizeof(g_mmb_mac));
+    memset(&g_mmb_ctx, 0, sizeof(MMB_CTX));
+    strcpy(g_mmb_ctx.hci_dev,      "hci0");
+    strcpy(g_mmb_ctx.miband_mac,   "88:0F:10:2A:5F:08");
 
     // Default UserInfo
-    memset(&g_mmb_user_info, 0, sizeof(struct mmb_user_info_s));
-    g_mmb_user_info.uid       = 19820610;
-    g_mmb_user_info.gender    = 1;
-    g_mmb_user_info.age       = 32;
-    g_mmb_user_info.height    = 175;
-    g_mmb_user_info.weight    = 60;
-    g_mmb_user_info.type      = 0;
-    strncpy((char *)g_mmb_user_info.alias, "RobinMI", sizeof(g_mmb_user_info.alias));
+    g_mmb_ctx.user_info.uid       = 19820610;
+    g_mmb_ctx.user_info.gender    = 1;
+    g_mmb_ctx.user_info.age       = 32;
+    g_mmb_ctx.user_info.height    = 175;
+    g_mmb_ctx.user_info.weight    = 60;
+    g_mmb_ctx.user_info.type      = 0;
+    strcpy((char *)g_mmb_ctx.user_info.alias, "RobinMI");
     
     while ((opt = getopt_long(argc, argv, optarg_so, optarg_lo, NULL)) != -1)
     {
         switch(opt)
         {
             case 'i':
-                strncpy(g_mmb_hci_dev, optarg, sizeof(g_mmb_hci_dev));
+                strncpy(g_mmb_ctx.hci_dev, optarg, sizeof(g_mmb_ctx.hci_dev));
                 break;
             case 'b':
-                strncpy((char *)g_mmb_mac, optarg, sizeof(g_mmb_mac));
+                strncpy((char *)g_mmb_ctx.miband_mac, optarg, sizeof(g_mmb_ctx.miband_mac));
                 break;
             case 'h':
                 printf("Usage:\n\n");
                 exit(0);
         }
     }
-
-    // Generate User Info Code
-    mmb_user_info_gen_code(&g_mmb_user_info, atol(g_mmb_mac + 15) & 0xFF);
 
     if ((ret = mmb_mainloop()) < 0)
     {
@@ -185,3 +180,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
