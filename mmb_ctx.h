@@ -1,7 +1,9 @@
 #ifndef MMB_CTX_H_
 #define MMB_CTX_H_
 
+#include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
 
 struct mmb_user_info_s {
     union {
@@ -32,6 +34,10 @@ typedef struct mmb_ctx_s {
     char hci_dev[6];
     char miband_mac[18];
     struct mmb_user_info_s user_info;
+    struct evhr_ctx_s * evhr;
+    FILE *  gatt_shell_file_fd;
+    int     gatt_shell_fd;
+    int     gatt_shell_running;
 } MMB_CTX;
 
 #endif

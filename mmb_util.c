@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <fcntl.h>          // For fcntl
 #include "mmb_util.h"
 
 int bytes_to_hex_str(char * out, uint8_t * in, size_t len)
@@ -33,4 +34,21 @@ uint8_t crc8(uint8_t crc, uint8_t *data, size_t len)
     }
 
     return (crc & 0xff);
+}
+
+int socket_setting_non_blocking(int fd)
+{
+    int flags;
+
+    // Get current flags
+    flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1)
+        return -1;
+
+    // Set non-block flags
+    flags |= O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, flags) == -1)
+        return -1;
+
+    return 0;
 }

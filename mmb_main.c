@@ -1,131 +1,34 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <getopt.h>  
 
 #include "mmb_util.h"
 #include "mmb_ctx.h"
+#include "evhr.h"
 
-static MMB_CTX g_mmb_ctx;
+MMB_CTX g_mmb_ctx;
 
-static int mmb_send_gatt_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t size)
-{
-    char cmd[CMD_BUFFER_SIZE];
-    char buf[CMD_BUFFER_SIZE];
-
-    if ((size * 2) > (CMD_BUFFER_SIZE - 1))
-        return -1;
-
-    bytes_to_hex_str(buf, data, size);
-
-    snprintf(cmd, CMD_BUFFER_SIZE, 
-            "%s -i %s -b %s --char-write-req -a 0x%04x -n %s;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, hnd, buf);
-    printf("[CMD] %s\n", cmd);
-
-    return system(cmd);
-} 
-
-int mmb_send_user_info()
-{
-    uint8_t byte;
-
-    // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    byte = atol(g_mmb_ctx.miband_mac + strlen(g_mmb_ctx.miband_mac) - 2) & 0xFF;
-    g_mmb_ctx.user_info.code = crc8(0x00, g_mmb_ctx.user_info.data, sizeof(g_mmb_ctx.user_info.data) - 1) ^ byte;
-
-    return mmb_send_gatt_char_hnd_write_req(
-            MIBAND_CHAR_HND_USERINFO, 
-            g_mmb_ctx.user_info.data, 
-            sizeof(g_mmb_ctx.user_info.data));
-}
-
-int mmb_send_sensor_notify_disable()
-{
-    int ret = 0;
-    uint8_t value[2];
-
-    // Disable Sensor Data
-    value[0] = 0x00;
-    value[1] = 0x00;
-    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
-    if (ret != 0)
-        return ret;
-
-    // Disable Sensor Notify
-    value[0] = 0x00;
-    value[1] = 0x00;
-    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
-    if (ret != 0)
-        return ret;
-
-    return 0;
-}
-
-int mmb_send_sensor_notify_enable()
-{
-    int ret = 0;
-    uint8_t value[2];
-
-    // Enable Sensor Data
-    value[0] = 0x02;
-    value[1] = 0x00;
-    ret = mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_DATA, value, 2);
-    if (ret != 0)
-        return ret;
-
-    // Endbale Sensor Notify
-    value[0] = 0x02;
-    value[1] = 0x00;
-    return mmb_send_gatt_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
-}
-
-static int mmb_gatt_listen_start()
-{
-    return 0;
-}
+/* mmb_gatt_shell.c */ 
+extern int mmb_gatt_listen_start(); 
+extern int mmb_gatt_send_user_info();
+extern int mmb_gatt_send_sensor_notify_disable();
+extern int mmb_gatt_send_sensor_notify_enable();
 
 int mmb_mainloop()
 {
-    FILE *fd = NULL;
-    char buf[CMD_BUFFER_SIZE];
-
-    unsigned short hnd = 0x0000;
-    char value[CMD_BUFFER_SIZE];
-    
-    memset(buf, 0, sizeof(buf));
-
     // Send USER_INFO
-    mmb_send_user_info();
+    mmb_gatt_send_user_info();
 
     // Send Sense Data Notification Disable/Enable
-    mmb_send_sensor_notify_disable();
-    mmb_send_sensor_notify_enable();
+    mmb_gatt_send_sensor_notify_disable();
+    mmb_gatt_send_sensor_notify_enable();
 
     // Start Listen
-    snprintf(buf, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, MIBAND_CHAR_HND_USERINFO);
-    printf("[CMD] %s\n", buf);
-
-    // popen
-    if ((fd = popen(buf, "r")) == NULL)
-    {
-        printf("popen failed!\n");
-        return -1;
-    }              
-
-    // Read
-    while (fgets(buf, CMD_BUFFER_SIZE, fd))
-    {
-        if (!strncmp(buf, RESPONSE_NOTIFICATION_STR, strlen(RESPONSE_NOTIFICATION_STR)))
-        {
-            sscanf(buf, "Notification handle = 0x%hx value: %[^\n]s", &hnd, value);
-            printf("SENSOR_NOTIFY [0x%04x] %s\n", hnd, value);
-        }
-    }
-
-    pclose(fd);
+    mmb_gatt_listen_start();
+    
+    // Start Event Handler Dispatch (blocking)
+    evhr_dispatch(g_mmb_ctx.evhr);
 
     return 0;
 }
@@ -155,7 +58,8 @@ int main(int argc, char *argv[])
     g_mmb_ctx.user_info.weight    = 60;
     g_mmb_ctx.user_info.type      = 0;
     strcpy((char *)g_mmb_ctx.user_info.alias, "RobinMI");
-    
+
+    // Got Arg
     while ((opt = getopt_long(argc, argv, optarg_so, optarg_lo, NULL)) != -1)
     {
         switch(opt)
@@ -172,10 +76,18 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Inital EVHR
+    if ((ret = evhr_create(&g_mmb_ctx.evhr)) != EVHR_RTN_SUCCESS)
+    {
+        printf("evhr_create failed! ret = %d\n", ret);
+        exit(1);
+    }
+    
+    // Start Main Loop
     if ((ret = mmb_mainloop()) < 0)
     {
         printf("mmb_connect failed! ret[%d]", ret);
-        exit(1);
+        exit(2);
     }
 
     return 0;

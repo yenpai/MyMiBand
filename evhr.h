@@ -1,13 +1,23 @@
 #ifndef EVHR_H_
 #define EVHR_H_
 
+#include <stdio.h>
+
 #define EVHR_EPOLL_MAX_EVENTS           32
 #define EVHR_EPOLL_WAIT_TIMEOUT_MS      10000
 
-#include <stdio.h>
+#define EVHR_LOG_ENABLE
+#undef  EVHR_LOG_ENABLE
+
+#ifdef EVHR_LOG_ENABLE
 #define EVHR_LOG_ERR(FMT, args...) printf("[EVHR][ERR]: " FMT "\n", ## args)
 #define EVHR_LOG_DBG(FMT, args...) printf("[EVHR][DBG]: " FMT "\n", ## args)
 #define EVHR_LOG_MSG(FMT, args...) printf("[EVHR][MSG]: " FMT "\n", ## args)
+#else
+#define EVHR_LOG_ERR(FMT, args...)
+#define EVHR_LOG_DBG(FMT, args...)
+#define EVHR_LOG_MSG(FMT, args...)
+#endif
 
 typedef enum evhr_rtn_e {
 	EVHR_RTN_SUCCESS 			        = 0,
