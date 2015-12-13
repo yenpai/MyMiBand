@@ -4,6 +4,21 @@
 #include <stdio.h>
 #include <stdint.h>
 
+
+/*
+ * unused attribute macros
+ * example:
+ *   void foo(int UNUSED(bar)) { ... }
+ *   static void UNUSED_FUNCTION(foo)(int bar) { ... }
+ */
+#ifdef __GNUC__
+    #define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+    #define UNUSED_FUNCTION(x) __attribute__((__unused__)) UNUSED_ ## x
+#else
+    #define UNUSED(x) UNUSED_ ## x
+    #define UNUSED_FUNCTION(x) UNUSED_ ## x
+#endif
+
 int bytes_to_hex_str(char * out, uint8_t * in, size_t size);
 uint8_t crc8(uint8_t crc, uint8_t *data, size_t len);
 int socket_setting_non_blocking(int fd);

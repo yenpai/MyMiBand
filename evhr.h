@@ -1,8 +1,6 @@
 #ifndef EVHR_H_
 #define EVHR_H_
 
-#include <stdio.h>
-
 #define EVHR_EPOLL_MAX_EVENTS           32
 #define EVHR_EPOLL_WAIT_TIMEOUT_MS      10000
 
@@ -10,9 +8,10 @@
 #undef  EVHR_LOG_ENABLE
 
 #ifdef EVHR_LOG_ENABLE
-#define EVHR_LOG_ERR(FMT, args...) printf("[EVHR][ERR]: " FMT "\n", ## args)
-#define EVHR_LOG_DBG(FMT, args...) printf("[EVHR][DBG]: " FMT "\n", ## args)
-#define EVHR_LOG_MSG(FMT, args...) printf("[EVHR][MSG]: " FMT "\n", ## args)
+#include <stdio.h>
+#define EVHR_LOG_ERR(FMT, args...) printf("[EVHR][ERR]" FMT "\n", ## args)
+#define EVHR_LOG_DBG(FMT, args...) printf("[EVHR][DBG]" FMT "\n", ## args)
+#define EVHR_LOG_MSG(FMT, args...) printf("[EVHR][MSG]" FMT "\n", ## args)
 #else
 #define EVHR_LOG_ERR(FMT, args...)
 #define EVHR_LOG_DBG(FMT, args...)
@@ -25,6 +24,11 @@ typedef enum evhr_rtn_e {
 	EVHR_RTN_FAIL_NO_MEMORY		        = -10,
 	EVHR_RTN_FAIL_IS_NULL			    = -20,
 } EVHR_RTN;
+
+typedef enum {
+    EVHR_ET_MODE, /* Edge triggered mode */
+    EVHR_LT_MODE, /* Level triggered mode */
+} EVHR_EVENT_MODE;
 
 typedef enum evhr_event_type_e {
     EVHR_EVENT_TYPE_SOCKET,
@@ -44,10 +48,11 @@ typedef struct evhr_ctx_s {
 
 typedef struct evhr_event_record_s {
     int                     fd;
-    EVHR_EVENT_TYPE        type;
+    EVHR_EVENT_TYPE         type;
+    EVHR_EVENT_MODE         mode;
     void *                  pdata;
-    EVHR_EVENT_CALLBACK    in_cb;
-    EVHR_EVENT_CALLBACK    err_cb;
+    EVHR_EVENT_CALLBACK     in_cb;
+    EVHR_EVENT_CALLBACK     err_cb;
 } EVHR_EVENT_RECORD;
 
 EVHR_RTN evhr_create(EVHR_CTX ** evhr);
@@ -56,17 +61,21 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * evhr);
 EVHR_RTN evhr_stop(EVHR_CTX * evhr);
 
 EVHR_RTN evhr_event_del(EVHR_CTX * evhr, int fd);
-EVHR_RTN evhr_event_add(EVHR_CTX * evhr, int fd, int type, void *pdata, 
+EVHR_RTN evhr_event_add(EVHR_CTX * evhr, int fd, int type, int mode, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
 EVHR_RTN evhr_event_add_socket(EVHR_CTX * evhr, int fd, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
-EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * evhr, int timerfd, 
+/* Timer */
+typedef int EVHR_TIMER_FD;
+
+EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
-EVHR_RTN evhr_event_add_timer_once(EVHR_CTX * evhr, int timerfd, 
+EVHR_RTN evhr_event_add_timer_once(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
-EVHR_RTN evhr_event_stop_timer(int timerfd);
+EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd);
+EVHR_TIMER_FD evhr_event_create_timer();
 
 // Refer : http://neokentblog.blogspot.tw/2012/11/linux-fd-handler-timer.html
 

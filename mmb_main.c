@@ -17,18 +17,23 @@ extern int mmb_gatt_send_sensor_notify_enable();
 
 int mmb_mainloop()
 {
-    // Send USER_INFO
-    mmb_gatt_send_user_info();
+    while(1)
+    {
+        // Send USER_INFO
+        mmb_gatt_send_user_info();
 
-    // Send Sense Data Notification Disable/Enable
-    mmb_gatt_send_sensor_notify_disable();
-    mmb_gatt_send_sensor_notify_enable();
+        // Send Sense Data Notification Disable/Enable
+        mmb_gatt_send_sensor_notify_disable();
+        mmb_gatt_send_sensor_notify_enable();
 
-    // Start Listen
-    mmb_gatt_listen_start();
-    
-    // Start Event Handler Dispatch (blocking)
-    evhr_dispatch(g_mmb_ctx.evhr);
+        // Start Listen
+        mmb_gatt_listen_start();
+
+        // Start Event Handler Dispatch (blocking)
+        evhr_dispatch(g_mmb_ctx.evhr);
+
+        printf("reboot\n");
+    }
 
     return 0;
 }

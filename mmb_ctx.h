@@ -5,6 +5,17 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#define CMD_BUFFER_SIZE     512
+#define CMD_GATTTOOL_PATH   "/usr/bin/gatttool"
+
+#define RESPONSE_NOTIFICATION_STR "Notification"
+
+#define MIBAND_CHAR_HND_USERINFO        0x0019
+#define MIBAND_CHAR_HND_SENSOR          0x0031
+#define MIBAND_CHAR_HND_SENSOR_NOTIFY   0x0032
+
+#define MMB_GATT_LISTEN_TIMEOUT_SEC     10
+
 struct mmb_user_info_s {
     union {
         uint8_t data[20];
@@ -21,23 +32,21 @@ struct mmb_user_info_s {
     };
 };
 
-#define CMD_BUFFER_SIZE     512
-#define CMD_GATTTOOL_PATH   "/usr/bin/gatttool"
-
-#define RESPONSE_NOTIFICATION_STR "Notification"
-
-#define MIBAND_CHAR_HND_USERINFO        0x0019
-#define MIBAND_CHAR_HND_SENSOR_DATA     0x0031
-#define MIBAND_CHAR_HND_SENSOR_NOTIFY   0x0032
+struct mmb_gatt_s {
+    int     is_running;
+    int     timer_fd;
+    FILE *  popen_fd;
+    char    buf[CMD_BUFFER_SIZE * 2];
+    size_t  buf_size;
+    void *  pdata;
+};
 
 typedef struct mmb_ctx_s {
     char hci_dev[6];
     char miband_mac[18];
-    struct mmb_user_info_s user_info;
     struct evhr_ctx_s * evhr;
-    FILE *  gatt_shell_file_fd;
-    int     gatt_shell_fd;
-    int     gatt_shell_running;
+    struct mmb_user_info_s user_info;
+    struct mmb_gatt_s gatt;
 } MMB_CTX;
 
 #endif
