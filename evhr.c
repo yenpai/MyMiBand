@@ -74,8 +74,8 @@ EVHR_RTN evhr_release(EVHR_CTX * this)
 EVHR_RTN evhr_dispatch(EVHR_CTX * this)
 {
     int rval = 0, i = 0;
-    unsigned long       timer_value = 0;
-    EVHR_EVENT_RECORD * record = NULL;
+    unsigned long timer_value = 0;
+    EVHR_EVENT *  event = NULL;
 
     this->running = 1;
     
@@ -98,7 +98,7 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * this)
         // Read and process event
         for (i = 0; i < rval; i++)
         {
-            record = (EVHR_EVENT_RECORD *) this->events[i].data.ptr;
+            event = (EVHR_EVENT *) this->events[i].data.ptr;
 
             // EPOLLIN
             if (this->events[i].events & EPOLLIN)
@@ -107,12 +107,12 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * this)
                 EVHR_LOG_DBG("[EVENT] EPOLLIN, events[%d], type[%d].", 
                         this->events[i].events, record->type) ;
 
-                if ((record->type == EVHR_EVENT_TYPE_TIMER_ONCE) ||
-                    (record->type == EVHR_EVENT_TYPE_TIMER_PERIODIC))
-                    read( record->fd, &timer_value, 8);
+                if ((event->type == EVHR_EVENT_TYPE_TIMER_ONCE) ||
+                    (event->type == EVHR_EVENT_TYPE_TIMER_PERIODIC))
+                    read( event->fd, &timer_value, 8);
              
-                if (record->in_cb)       
-                    record->in_cb(record->fd, record->pdata);
+                if (event->in_cb)       
+                    event->in_cb(event);
 
                 continue;
             }
@@ -128,8 +128,8 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * this)
                         this->events[i].events & EPOLLHUP,
                         this->events[i].events & EPOLLRDHUP);
                 
-                if (record->err_cb)
-                    record->err_cb(record->fd, record->pdata);
+                if (event->err_cb)
+                    event->err_cb(event);
 
                 continue;
             }
@@ -153,30 +153,32 @@ EVHR_RTN evhr_stop(EVHR_CTX * this)
     return EVHR_RTN_SUCCESS;
 }
 
-EVHR_RTN evhr_event_del(EVHR_CTX * this, int fd)
+EVHR_RTN evhr_event_del(EVHR_CTX * this, EVHR_EVENT * event)
 {
     struct epoll_event ev;
-    epoll_ctl(this->epfd, EPOLL_CTL_DEL, fd, &ev);
+    epoll_ctl(this->epfd, EPOLL_CTL_DEL, event->fd, &ev);
 
-    // free record
-    //free(ev.data.ptr);
+    free(event);
 
     return EVHR_RTN_SUCCESS;
 }
 
-EVHR_RTN evhr_event_add(EVHR_CTX * this, int fd, int type, int mode,
+EVHR_EVENT * evhr_event_add(EVHR_CTX * this, int fd, int type, int mode,
         void *pdata, EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb)
 {
     struct epoll_event   ev;
-    EVHR_EVENT_RECORD * record = NULL;
+    EVHR_EVENT * event = NULL;
   
-    record = malloc(sizeof(EVHR_EVENT_RECORD)); 
-    record->fd      = fd;
-    record->type    = type;
-    record->pdata   = pdata;
-    record->in_cb   = in_cb;
-    record->err_cb  = err_cb;
-    ev.data.ptr = record;
+    event = malloc(sizeof(EVHR_EVENT)); 
+    if (event == NULL)
+        return NULL;
+
+    event->fd       = fd;
+    event->type     = type;
+    event->pdata    = pdata;
+    event->in_cb    = in_cb;
+    event->err_cb   = err_cb;
+    ev.data.ptr     = event;
 
     /*
      EPOLLIN ：可讀事件（包括對方SOCKET正常關閉）
@@ -193,10 +195,10 @@ EVHR_RTN evhr_event_add(EVHR_CTX * this, int fd, int type, int mode,
     
     epoll_ctl(this->epfd, EPOLL_CTL_ADD, fd, &ev); 
 
-    return EVHR_RTN_SUCCESS;
+    return event;
 }
 
-EVHR_RTN evhr_event_add_socket(EVHR_CTX * this, int fd, 
+EVHR_EVENT * evhr_event_add_socket(EVHR_CTX * this, int fd, 
         void *pdata, EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb)
 {
     return evhr_event_add(
@@ -238,11 +240,11 @@ EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd)
     return evhr_event_set_timer(timerfd, 0, 0, 0);
 }
 
-EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
+EVHR_EVENT * evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pdata, EVHR_EVENT_CALLBACK in_cb)
 {
     if (evhr_event_set_timer(timerfd, sec, nsec, 0) != EVHR_RTN_SUCCESS)
-        return EVHR_RTN_FAIL;
+        return NULL;
 
     return evhr_event_add(
             this, timerfd, 
@@ -250,11 +252,11 @@ EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd,
             pdata, in_cb, NULL);
 }
 
-EVHR_RTN evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
+EVHR_EVENT * evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pdata, EVHR_EVENT_CALLBACK in_cb)
 {
     if (evhr_event_set_timer(timerfd, sec, nsec, 1) != EVHR_RTN_SUCCESS)
-        return EVHR_RTN_FAIL;
+        return NULL;
 
     return evhr_event_add(
             this, timerfd, 

@@ -91,24 +91,24 @@ static void do_gatt_listen_stop(struct mmb_gatt_s * gatt)
     printf("[GATT][STOP].\n");
     system("killall gatttool");
 
-    if (gatt->popen_file_fd > 0)
-        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, gatt->popen_file_fd);
-    
     // close popen and event
     if (gatt->popen_fd != NULL)
         pclose(gatt->popen_fd);
     
+    if (gatt->proc_ev)
+        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, gatt->proc_ev);
+    
     // stop timer and event
-    if (gatt->timer_fd > 0)
+    if (gatt->time_ev)
     {
-        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, gatt->timer_fd);
-        evhr_event_stop_timer(gatt->timer_fd);
-        close(gatt->timer_fd);
+        evhr_event_stop_timer(gatt->time_ev->fd);
+        close(gatt->time_ev->fd);
+        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, gatt->time_ev);
     }
 
-    gatt->popen_fd   = NULL;
-    gatt->popen_file_fd = -1;
-    gatt->timer_fd      = -1;
+    gatt->popen_fd      = NULL;
+    gatt->proc_ev       = NULL;
+    gatt->time_ev       = NULL;
     gatt->buf_size      = 0;
     gatt->is_running    = 0;
 
@@ -118,22 +118,24 @@ static void do_gatt_listen_stop(struct mmb_gatt_s * gatt)
 
 }
 
-static void callback_gatt_listen_timeout(int UNUSED(fd), void *pdata)
+static void callback_gatt_listen_timeout(void *pdata)
 {
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) pdata;
+    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
+    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
     printf("[GATT][TIMEOUT].\n");
     do_gatt_listen_stop(gatt);
 }
 
-static void callback_gatt_listen_read(int fd, void * pdata)
+static void callback_gatt_listen_read(void * pdata)
 {
     int len = 0;
     char buf[CMD_BUFFER_SIZE];
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) pdata;
+    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
+    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
 
     while (1)
     {
-        len = read(fd, buf, CMD_BUFFER_SIZE);
+        len = read(event->fd, buf, CMD_BUFFER_SIZE);
 
         if (len == 0)
         {
@@ -164,7 +166,7 @@ static void callback_gatt_listen_read(int fd, void * pdata)
 
         // Update timer
         evhr_event_set_timer(
-                gatt->timer_fd, MMB_GATT_LISTEN_TIMEOUT_SEC, 10, 0);
+                gatt->time_ev->fd, MMB_GATT_LISTEN_TIMEOUT_SEC, 10, 0);
     }
 
     return;
@@ -177,24 +179,27 @@ disconnect:
     return;
 }
 
-static void callback_gatt_listen_error(int UNUSED(fd), void * pdata)
+static void callback_gatt_listen_error(void * pdata)
 {
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) pdata;
+    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
+    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
+
     printf("[GATT][ERROR].\n");
     do_gatt_listen_stop(gatt);
 }
 
 int mmb_gatt_listen_start()
 {
+    int fd = -1;
     char shell_cmd[CMD_BUFFER_SIZE];
     struct mmb_gatt_s * gatt = &g_mmb_ctx.gatt;
     
-    gatt->popen_fd   = NULL;
-    gatt->popen_file_fd   = -1;
-    gatt->timer_fd   = -1;
-    gatt->is_running = 0;
-    gatt->buf_size   = 0;
-    gatt->pdata      = (void *) &g_mmb_ctx;
+    gatt->popen_fd      = NULL;
+    gatt->proc_ev       = NULL;
+    gatt->time_ev       = NULL;
+    gatt->buf_size      = 0;
+    gatt->is_running    = 0;
+    gatt->pdata         = (void *) &g_mmb_ctx;
 
     // Start Listen
     snprintf(shell_cmd, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
@@ -208,32 +213,39 @@ int mmb_gatt_listen_start()
         return -1;
     }              
 
-    gatt->popen_file_fd = fileno(gatt->popen_fd);
-    socket_setting_non_blocking(gatt->popen_file_fd);
+    fd = fileno(gatt->popen_fd);
+    socket_setting_non_blocking(fd);
 
     // Add popen into event handler
-    evhr_event_add_socket(
-            g_mmb_ctx.evhr, gatt->popen_file_fd, gatt,
+    gatt->proc_ev = evhr_event_add_socket(
+            g_mmb_ctx.evhr, fd, gatt,
             callback_gatt_listen_read, callback_gatt_listen_error);
-    
-    // Create timerfd
-    gatt->timer_fd = evhr_event_create_timer();
-    if (gatt->timer_fd < 0)
+    if (gatt->proc_ev == NULL)
     {
-        printf("[GATT][ERROR] timer create failed!\n");
+        printf("[GATT][ERROR] popen event binding failed!\n");
         do_gatt_listen_stop(gatt);
         return -2;
     }
+    
+    // Create timerfd
+    fd = evhr_event_create_timer();
+    if (fd < 0)
+    {
+        printf("[GATT][ERROR] timer create failed!\n");
+        do_gatt_listen_stop(gatt);
+        return -3;
+    }
 
     // Add timer into event handler
-    if (evhr_event_add_timer_periodic(
-            g_mmb_ctx.evhr, gatt->timer_fd,
+    gatt->time_ev = evhr_event_add_timer_periodic(
+            g_mmb_ctx.evhr, fd,
             MMB_GATT_LISTEN_TIMEOUT_SEC, 10, /* MMB_GATT_LISTEN_TIMEOUT_SEC + 10 nsec timeout */
-            gatt, callback_gatt_listen_timeout) != EVHR_RTN_SUCCESS)
+            gatt, callback_gatt_listen_timeout);
+    if (gatt->time_ev == NULL)
     {
         printf("[GATT][ERROR] timer event binding failed!\n");
         do_gatt_listen_stop(gatt);
-        return -3;
+        return -4;
     }
 
     g_mmb_ctx.gatt.is_running = 1;

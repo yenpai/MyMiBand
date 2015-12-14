@@ -36,7 +36,7 @@ typedef enum evhr_event_type_e {
     EVHR_EVENT_TYPE_TIMER_PERIODIC,
 } EVHR_EVENT_TYPE;
 
-typedef void (*EVHR_EVENT_CALLBACK) (int, void *);
+typedef void (*EVHR_EVENT_CALLBACK) (void *);
 
 typedef struct evhr_ctx_s {
     int                     running;
@@ -46,26 +46,26 @@ typedef struct evhr_ctx_s {
     void *                  pdata;
 } EVHR_CTX;
 
-typedef struct evhr_event_record_s {
+typedef struct evhr_event_s {
     int                     fd;
     EVHR_EVENT_TYPE         type;
     EVHR_EVENT_MODE         mode;
     void *                  pdata;
     EVHR_EVENT_CALLBACK     in_cb;
     EVHR_EVENT_CALLBACK     err_cb;
-} EVHR_EVENT_RECORD;
+} EVHR_EVENT;
 
 EVHR_RTN evhr_create(EVHR_CTX ** evhr);
 EVHR_RTN evhr_release(EVHR_CTX * evhr);
 EVHR_RTN evhr_dispatch(EVHR_CTX * evhr);
 EVHR_RTN evhr_stop(EVHR_CTX * evhr);
 
-EVHR_RTN evhr_event_del(EVHR_CTX * evhr, int fd);
-EVHR_RTN evhr_event_add(EVHR_CTX * evhr, int fd, int type, int mode, void *pdata, 
+EVHR_RTN evhr_event_del(EVHR_CTX * evhr, EVHR_EVENT * ev);
+EVHR_EVENT * evhr_event_add(EVHR_CTX * evhr, int fd, int type, int mode, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
 /* Socket or FIFO file */
-EVHR_RTN evhr_event_add_socket(EVHR_CTX * evhr, int fd, void *pdata, 
+EVHR_EVENT * evhr_event_add_socket(EVHR_CTX * evhr, int fd, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
 /* Timer */
@@ -74,9 +74,9 @@ EVHR_TIMER_FD evhr_event_create_timer();
 EVHR_RTN evhr_event_set_timer(EVHR_TIMER_FD timerfd, int sec, int nsec, int is_once);
 EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd);
 
-EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
+EVHR_EVENT * evhr_event_add_timer_periodic(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
-EVHR_RTN evhr_event_add_timer_once(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
+EVHR_EVENT * evhr_event_add_timer_once(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
 
 #endif 

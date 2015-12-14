@@ -34,9 +34,9 @@ struct mmb_user_info_s {
 
 struct mmb_gatt_s {
     int     is_running;
-    int     timer_fd;
     FILE *  popen_fd;
-    int     popen_file_fd;
+    struct  evhr_event_s * time_ev;
+    struct  evhr_event_s * proc_ev;
     char    buf[CMD_BUFFER_SIZE * 2];
     size_t  buf_size;
     void *  pdata;
