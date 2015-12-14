@@ -60,10 +60,8 @@ static int do_gatt_listen_buffer_parsing(struct mmb_gatt_s * gatt)
 
         // Start Parsing Command 
         curr[end] = '\0';
-        if (do_gatt_listen_string_parsing(curr) != -1) {
-            // TODO: update timer here.
+        if (do_gatt_listen_string_parsing(curr) != -1)
             goto next_size_p;
-        }
 
         // unknow command
         printf("[GATT][READ][UNKNOW] size = %ld, len = %ld, data = %s\n", size, end, curr);
