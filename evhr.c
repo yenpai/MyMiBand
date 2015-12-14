@@ -98,10 +98,11 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * this)
         // Read and process event
         for (i = 0; i < rval; i++)
         {
+            record = (EVHR_EVENT_RECORD *) this->events[i].data.ptr;
+
             // EPOLLIN
             if (this->events[i].events & EPOLLIN)
             {
-                record = (EVHR_EVENT_RECORD *) this->events[i].data.ptr;
 
                 EVHR_LOG_DBG("[EVENT] EPOLLIN, events[%d], type[%d].", 
                         this->events[i].events, record->type) ;
@@ -126,7 +127,7 @@ EVHR_RTN evhr_dispatch(EVHR_CTX * this)
                         this->events[i].events & EPOLLERR,
                         this->events[i].events & EPOLLHUP,
                         this->events[i].events & EPOLLRDHUP);
-
+                
                 if (record->err_cb)
                     record->err_cb(record->fd, record->pdata);
 
@@ -156,6 +157,9 @@ EVHR_RTN evhr_event_del(EVHR_CTX * this, int fd)
 {
     struct epoll_event ev;
     epoll_ctl(this->epfd, EPOLL_CTL_DEL, fd, &ev);
+
+    // free record
+    free(ev.data.ptr);
 
     return EVHR_RTN_SUCCESS;
 }

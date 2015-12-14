@@ -79,5 +79,4 @@ EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd,
 EVHR_RTN evhr_event_add_timer_once(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
 
-
 #endif 
