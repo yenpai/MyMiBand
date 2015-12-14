@@ -9,18 +9,18 @@
 
 MMB_CTX g_mmb_ctx;
 
-/* mmb_gatt_shell.c */ 
-extern int mmb_gatt_listen_start(); 
-extern int mmb_gatt_send_user_info();
+/* mmb_gatt.c */ 
+extern int mmb_gatt_send_user_info(struct mmb_user_info_s * user, char * miband_mac);
 extern int mmb_gatt_send_sensor_notify_disable();
 extern int mmb_gatt_send_sensor_notify_enable();
+extern int mmb_gatt_listen_start(); 
 
 int mmb_mainloop()
 {
     while(1)
     {
         // Send USER_INFO
-        mmb_gatt_send_user_info();
+        mmb_gatt_send_user_info(&g_mmb_ctx.user_info, g_mmb_ctx.miband_mac);
 
         // Send Sense Data Notification Disable/Enable
         mmb_gatt_send_sensor_notify_disable();
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
                 strncpy(g_mmb_ctx.hci_dev, optarg, sizeof(g_mmb_ctx.hci_dev));
                 break;
             case 'b':
-                strncpy((char *)g_mmb_ctx.miband_mac, optarg, sizeof(g_mmb_ctx.miband_mac));
+                strncpy(g_mmb_ctx.miband_mac, optarg, sizeof(g_mmb_ctx.miband_mac));
                 break;
             case 'h':
                 printf("Usage:\n\n");

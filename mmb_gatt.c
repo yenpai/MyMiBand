@@ -271,17 +271,17 @@ static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t 
     return system(cmd);
 } 
 
-int mmb_gatt_send_user_info()
+int mmb_gatt_send_user_info(struct mmb_user_info_s * user, char * miband_mac)
 {
     uint8_t byte;
 
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    byte = atol(g_mmb_ctx.miband_mac + strlen(g_mmb_ctx.miband_mac) - 2) & 0xFF;
-    g_mmb_ctx.user_info.code = crc8(0x00, g_mmb_ctx.user_info.data, sizeof(g_mmb_ctx.user_info.data) - 1) ^ byte;
+    byte = atol(miband_mac + strlen(miband_mac) - 2) & 0xFF;
+    g_mmb_ctx.user_info.code = crc8(0x00, user->data, sizeof(user->data) - 1) ^ byte;
 
     return mmb_gatt_send_char_hnd_write_req(
             MIBAND_CHAR_HND_USERINFO, 
-            g_mmb_ctx.user_info.data, 
+            user->data, 
             sizeof(g_mmb_ctx.user_info.data));
 }
 
