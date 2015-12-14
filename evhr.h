@@ -64,19 +64,20 @@ EVHR_RTN evhr_event_del(EVHR_CTX * evhr, int fd);
 EVHR_RTN evhr_event_add(EVHR_CTX * evhr, int fd, int type, int mode, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
+/* Socket or FIFO file */
 EVHR_RTN evhr_event_add_socket(EVHR_CTX * evhr, int fd, void *pdata, 
         EVHR_EVENT_CALLBACK in_cb, EVHR_EVENT_CALLBACK err_cb);
 
 /* Timer */
 typedef int EVHR_TIMER_FD;
+EVHR_TIMER_FD evhr_event_create_timer();
+EVHR_RTN evhr_event_set_timer(EVHR_TIMER_FD timerfd, int sec, int nsec, int is_once);
+EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd);
 
 EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
 EVHR_RTN evhr_event_add_timer_once(EVHR_CTX * evhr, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb);
-EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd);
-EVHR_TIMER_FD evhr_event_create_timer();
 
-// Refer : http://neokentblog.blogspot.tw/2012/11/linux-fd-handler-timer.html
 
 #endif 

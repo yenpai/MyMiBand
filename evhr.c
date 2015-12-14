@@ -201,19 +201,43 @@ EVHR_RTN evhr_event_add_socket(EVHR_CTX * this, int fd,
             pdata, in_cb, err_cb);
 }
 
+EVHR_TIMER_FD evhr_event_create_timer()
+{
+    return timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+}
+
+EVHR_RTN evhr_event_set_timer(EVHR_TIMER_FD timerfd, int sec, int nsec, int is_once)
+{
+    struct itimerspec tval;
+    
+    tval.it_value.tv_sec  = sec;
+    tval.it_value.tv_nsec = nsec;
+    if (is_once)
+    {
+        tval.it_interval.tv_sec  = 0;
+        tval.it_interval.tv_nsec = 0;
+    }
+    else
+    {
+        tval.it_interval.tv_sec  = sec;
+        tval.it_interval.tv_nsec = nsec;
+    }
+     
+    if (timerfd_settime(timerfd, 0, &tval, NULL) == -1)
+        return EVHR_RTN_FAIL;
+    
+    return EVHR_RTN_SUCCESS;
+}
+
+EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd)
+{
+    return evhr_event_set_timer(timerfd, 0, 0, 0);
+}
+
 EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb)
 {
-
-    struct itimerspec tval;
-    
-    tval.it_value.tv_sec = sec;
-    tval.it_value.tv_nsec = nsec;
-    tval.it_interval.tv_sec = sec;
-    tval.it_interval.tv_nsec = nsec;
-    
-    // 0 means relative timer.
-    if (timerfd_settime(timerfd, 0, &tval, NULL) == -1)
+    if (evhr_event_set_timer(timerfd, sec, nsec, 0) != EVHR_RTN_SUCCESS)
         return EVHR_RTN_FAIL;
 
     return evhr_event_add(
@@ -225,16 +249,7 @@ EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd,
 EVHR_RTN evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
         int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb)
 {
-
-    struct itimerspec tval;
-    
-    tval.it_value.tv_sec = sec;
-    tval.it_value.tv_nsec = nsec;
-    tval.it_interval.tv_sec = 0;
-    tval.it_interval.tv_nsec = 0;
-    
-    // 0 means relative timer.
-    if (timerfd_settime(timerfd, 0, &tval, NULL) == -1)
+    if (evhr_event_set_timer(timerfd, sec, nsec, 1) != EVHR_RTN_SUCCESS)
         return EVHR_RTN_FAIL;
 
     return evhr_event_add(
@@ -242,25 +257,3 @@ EVHR_RTN evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerf
             EVHR_EVENT_TYPE_TIMER_ONCE, EVHR_ET_MODE,
             pData, in_cb, NULL);
 }
-
-EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd)
-{
-    struct itimerspec tval;
-    
-    tval.it_value.tv_sec = 0;
-    tval.it_value.tv_nsec = 0;
-    tval.it_interval.tv_sec = 0;
-    tval.it_interval.tv_nsec = 0;
-    
-    // 0 means relative timer.
-    if (timerfd_settime(timerfd, 0, &tval, NULL) == -1)
-        return EVHR_RTN_FAIL;
-    
-    return EVHR_RTN_SUCCESS;
-}
-
-EVHR_TIMER_FD evhr_event_create_timer()
-{
-    return timerfd_create(CLOCK_MONOTONIC,TFD_NONBLOCK);
-}
-

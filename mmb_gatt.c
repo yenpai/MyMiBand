@@ -160,6 +160,10 @@ static void callback_gatt_listen_read(int fd, void * pdata)
 
         // parsing gatt buf
         do_gatt_listen_buffer_parsing(gatt);
+
+        // Update timer
+        evhr_event_set_timer(
+                gatt->timer_fd, MMB_GATT_LISTEN_TIMEOUT_SEC, 10, 0);
     }
 
     return;
@@ -226,7 +230,6 @@ int mmb_gatt_listen_start()
             MMB_GATT_LISTEN_TIMEOUT_SEC, 10, /* MMB_GATT_LISTEN_TIMEOUT_SEC + 10 nsec timeout */
             gatt, callback_gatt_listen_timeout) != EVHR_RTN_SUCCESS)
     {
-        // TODO:
         printf("[GATT][ERROR] timer event binding failed!\n");
         do_gatt_listen_stop(gatt);
         return -3;
