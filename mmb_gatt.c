@@ -84,15 +84,19 @@ next_size_p:
 
 static void do_gatt_listen_stop(struct mmb_gatt_s * gatt)
 {
+    
     if (gatt == NULL)
         return;
+    
+    printf("[GATT][STOP].\n");
+    system("killall gatttool");
 
+    if (gatt->popen_file_fd > 0)
+        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, gatt->popen_file_fd);
+    
     // close popen and event
-    if (gatt->popen_fd)
-    {
-        evhr_event_del( ((MMB_CTX *) gatt->pdata)->evhr, fileno(gatt->popen_fd));
+    if (gatt->popen_fd != NULL)
         pclose(gatt->popen_fd);
-    }
     
     // stop timer and event
     if (gatt->timer_fd > 0)
@@ -103,16 +107,15 @@ static void do_gatt_listen_stop(struct mmb_gatt_s * gatt)
     }
 
     gatt->popen_fd   = NULL;
-    gatt->timer_fd   = -1;
-    gatt->buf_size   = 0;
-    gatt->is_running = 0;
+    gatt->popen_file_fd = -1;
+    gatt->timer_fd      = -1;
+    gatt->buf_size      = 0;
+    gatt->is_running    = 0;
 
     // stop event handler
-    if (gatt->pdata) {
+    if (gatt->pdata)
         evhr_stop(((MMB_CTX *) gatt->pdata)->evhr);
-    }
 
-    printf("[GATT][STOP].\n");
 }
 
 static void callback_gatt_listen_timeout(int UNUSED(fd), void *pdata)
@@ -183,11 +186,11 @@ static void callback_gatt_listen_error(int UNUSED(fd), void * pdata)
 
 int mmb_gatt_listen_start()
 {
-    int fd;
     char shell_cmd[CMD_BUFFER_SIZE];
     struct mmb_gatt_s * gatt = &g_mmb_ctx.gatt;
     
     gatt->popen_fd   = NULL;
+    gatt->popen_file_fd   = -1;
     gatt->timer_fd   = -1;
     gatt->is_running = 0;
     gatt->buf_size   = 0;
@@ -205,12 +208,12 @@ int mmb_gatt_listen_start()
         return -1;
     }              
 
-    fd = fileno(gatt->popen_fd);
-    socket_setting_non_blocking(fd);
+    gatt->popen_file_fd = fileno(gatt->popen_fd);
+    socket_setting_non_blocking(gatt->popen_file_fd);
 
     // Add popen into event handler
     evhr_event_add_socket(
-            g_mmb_ctx.evhr, fd, gatt,
+            g_mmb_ctx.evhr, gatt->popen_file_fd, gatt,
             callback_gatt_listen_read, callback_gatt_listen_error);
     
     // Create timerfd

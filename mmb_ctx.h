@@ -36,6 +36,7 @@ struct mmb_gatt_s {
     int     is_running;
     int     timer_fd;
     FILE *  popen_fd;
+    int     popen_file_fd;
     char    buf[CMD_BUFFER_SIZE * 2];
     size_t  buf_size;
     void *  pdata;

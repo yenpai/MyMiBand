@@ -32,7 +32,7 @@ int mmb_mainloop()
         // Start Event Handler Dispatch (blocking)
         evhr_dispatch(g_mmb_ctx.evhr);
 
-        printf("reboot\n");
+        printf("[MMB][MAINLOOP] restart.\n");
     }
 
     return 0;

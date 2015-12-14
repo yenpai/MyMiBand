@@ -159,7 +159,7 @@ EVHR_RTN evhr_event_del(EVHR_CTX * this, int fd)
     epoll_ctl(this->epfd, EPOLL_CTL_DEL, fd, &ev);
 
     // free record
-    free(ev.data.ptr);
+    //free(ev.data.ptr);
 
     return EVHR_RTN_SUCCESS;
 }
@@ -239,7 +239,7 @@ EVHR_RTN evhr_event_stop_timer(EVHR_TIMER_FD timerfd)
 }
 
 EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
-        int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb)
+        int sec, int nsec, void *pdata, EVHR_EVENT_CALLBACK in_cb)
 {
     if (evhr_event_set_timer(timerfd, sec, nsec, 0) != EVHR_RTN_SUCCESS)
         return EVHR_RTN_FAIL;
@@ -247,11 +247,11 @@ EVHR_RTN evhr_event_add_timer_periodic(EVHR_CTX * this, EVHR_TIMER_FD timerfd,
     return evhr_event_add(
             this, timerfd, 
             EVHR_EVENT_TYPE_TIMER_PERIODIC, EVHR_ET_MODE,
-            pData, in_cb, NULL);
+            pdata, in_cb, NULL);
 }
 
 EVHR_RTN evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerfd, 
-        int sec, int nsec, void *pData, EVHR_EVENT_CALLBACK in_cb)
+        int sec, int nsec, void *pdata, EVHR_EVENT_CALLBACK in_cb)
 {
     if (evhr_event_set_timer(timerfd, sec, nsec, 1) != EVHR_RTN_SUCCESS)
         return EVHR_RTN_FAIL;
@@ -259,5 +259,5 @@ EVHR_RTN evhr_event_handler_add_timer_once(EVHR_CTX * this, EVHR_TIMER_FD timerf
     return evhr_event_add(
             this, timerfd, 
             EVHR_EVENT_TYPE_TIMER_ONCE, EVHR_ET_MODE,
-            pData, in_cb, NULL);
+            pdata, in_cb, NULL);
 }
