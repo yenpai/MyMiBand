@@ -9,22 +9,57 @@
 
 extern MMB_CTX g_mmb_ctx;
 
+static size_t hex_str_to_byte(uint8_t *arr, size_t max, char *str, const char * split)
+{
+    char *s = NULL;
+    size_t i = 0;
+
+    s = strtok(str, split);
+
+    while(s != NULL)
+    {
+        arr[i] = 0xFF & strtoul(s, NULL, 16);
+        s = strtok(NULL, split); 
+        
+        if (++i > max)
+            break;
+    }
+
+    return i;
+}
+
 static int do_gatt_listen_string_parsing(char * str)
 {
     uint16_t hnd = 0x0000;
-    char value[CMD_BUFFER_SIZE];
-
+    char tmp[CMD_BUFFER_SIZE];
+    uint8_t buf[256];
+    size_t buf_len = 0;
+    
     // NOTIFICATION 
     if (!strncmp(str, RESPONSE_NOTIFICATION_STR, strlen(RESPONSE_NOTIFICATION_STR)))
     {
-        sscanf(str + strlen(RESPONSE_NOTIFICATION_STR) + 1, "handle = 0x%hx value: %[^\n]s", &hnd, value);
+        sscanf(str + strlen(RESPONSE_NOTIFICATION_STR) + 1, "handle = 0x%hx value: %[^\n]s", &hnd, tmp);
         switch (hnd)
         {
             case MIBAND_CHAR_HND_SENSOR:
-                printf("[GATT][NOTIFY][SENSOR] %s\n", value);
+                buf_len = hex_str_to_byte( buf, sizeof(buf), tmp, " ");
+                if (buf_len >= 8)
+                {
+                    // sensor data
+                    printf("[GATT][NOTIFY][SENSOR] SEQ(%u) X(%u) Y(%u) Z(%u)\n", 
+                            buf[0] | buf[1]<<8,
+                            buf[2] | buf[3]<<8,
+                            buf[4] | buf[5]<<8,
+                            buf[6] | buf[7]<<8);
+                }
+                else
+                {
+                    printf("[GATT][NOTIFY][SENSOR] Data Len Not enought! [%s]\n", tmp);
+                }
+
                 break;
             default:
-                printf("[GATT][NOTIFY][0x%04x] %s\n", hnd, value);
+                printf("[GATT][NOTIFY][0x%04x] %s\n", hnd, tmp);
                 break;
         }
         return 0;
