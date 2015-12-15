@@ -24,5 +24,6 @@ size_t hex_str_split_to_bytes(uint8_t * out, size_t max, char * in, const char *
 
 uint8_t crc8(uint8_t crc, uint8_t *data, size_t len);
 int socket_setting_non_blocking(int fd);
+int socket_udp_send_broadcast(unsigned short port, uint8_t * buf, size_t size);
 
 #endif

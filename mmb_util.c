@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <fcntl.h>          // For fcntl
+
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
 #include "mmb_util.h"
 
 size_t bytes_to_hex_str(char * out, uint8_t * in, size_t len)
@@ -73,6 +78,38 @@ int socket_setting_non_blocking(int fd)
     flags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, flags) == -1)
         return -1;
+
+    return 0;
+}
+
+int socket_udp_send_broadcast(unsigned short port, uint8_t * buf, size_t size)
+{
+    int sockfd = -1;
+    int optval = 1;
+    struct sockaddr_in dst_addr;
+
+    if ((sockfd = socket(AF_INET,SOCK_DGRAM,0) == -1))
+        return -1;
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, 
+                &optval, sizeof(optval)) == -1)
+    {
+        close(sockfd);
+        return -2;
+    }
+
+    dst_addr.sin_family         = AF_INET; 
+    dst_addr.sin_port           = htons(port); 
+    dst_addr.sin_addr.s_addr    = INADDR_BROADCAST; 
+
+    if (sendto(sockfd, buf, size, 0, 
+            (struct sockaddr *) &dst_addr, sizeof(dst_addr)) == -1)
+    {
+        close(sockfd);
+        return -3;
+    }
+
+    close(sockfd);
 
     return 0;
 }
