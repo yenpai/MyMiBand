@@ -9,25 +9,6 @@
 
 extern MMB_CTX g_mmb_ctx;
 
-static size_t hex_str_to_byte(uint8_t *arr, size_t max, char *str, const char * split)
-{
-    char *s = NULL;
-    size_t i = 0;
-
-    s = strtok(str, split);
-
-    while(s != NULL)
-    {
-        arr[i] = 0xFF & strtoul(s, NULL, 16);
-        s = strtok(NULL, split); 
-        
-        if (++i > max)
-            break;
-    }
-
-    return i;
-}
-
 static int do_gatt_listen_string_parsing(char * str)
 {
     uint16_t hnd = 0x0000;
@@ -42,7 +23,7 @@ static int do_gatt_listen_string_parsing(char * str)
         switch (hnd)
         {
             case MIBAND_CHAR_HND_SENSOR:
-                buf_len = hex_str_to_byte( buf, sizeof(buf), tmp, " ");
+                buf_len = hex_str_split_to_bytes(buf, sizeof(buf), tmp, " ");
                 if (buf_len >= 8)
                 {
                     // sensor data

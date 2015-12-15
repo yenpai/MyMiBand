@@ -19,7 +19,9 @@
     #define UNUSED_FUNCTION(x) UNUSED_ ## x
 #endif
 
-int bytes_to_hex_str(char * out, uint8_t * in, size_t size);
+size_t bytes_to_hex_str(char * out, uint8_t * in, size_t size);
+size_t hex_str_split_to_bytes(uint8_t * out, size_t max, char * in, const char * split);
+
 uint8_t crc8(uint8_t crc, uint8_t *data, size_t len);
 int socket_setting_non_blocking(int fd);
 
