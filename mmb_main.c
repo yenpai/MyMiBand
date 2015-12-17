@@ -10,7 +10,7 @@
 MMB_CTX g_mmb_ctx;
 
 /* mmb_gatt.c */ 
-extern int mmb_gatt_send_user_info(struct mmb_user_info_s * user, char * miband_mac);
+extern int mmb_gatt_send_auth(struct mmb_data_s * data);
 extern int mmb_gatt_send_sensor_notify_disable();
 extern int mmb_gatt_send_sensor_notify_enable();
 extern int mmb_gatt_listen_start(); 
@@ -19,8 +19,8 @@ int mmb_mainloop()
 {
     while(1)
     {
-        // Send USER_INFO
-        mmb_gatt_send_user_info(&g_mmb_ctx.user_info, g_mmb_ctx.miband_mac);
+        // Send Auth
+        mmb_gatt_send_auth(&g_mmb_ctx.data);
 
         // Send Sense Data Notification Disable/Enable
         mmb_gatt_send_sensor_notify_disable();
@@ -53,16 +53,16 @@ int main(int argc, char *argv[])
     // Default config
     memset(&g_mmb_ctx, 0, sizeof(MMB_CTX));
     strcpy(g_mmb_ctx.hci_dev,      "hci0");
-    strcpy(g_mmb_ctx.miband_mac,   "88:0F:10:2A:5F:08");
+    strcpy(g_mmb_ctx.data.miband_mac,   "88:0F:10:2A:5F:08");
 
     // Default UserInfo
-    g_mmb_ctx.user_info.uid       = 19820610;
-    g_mmb_ctx.user_info.gender    = 1;
-    g_mmb_ctx.user_info.age       = 32;
-    g_mmb_ctx.user_info.height    = 175;
-    g_mmb_ctx.user_info.weight    = 60;
-    g_mmb_ctx.user_info.type      = 0;
-    strcpy((char *)g_mmb_ctx.user_info.alias, "RobinMI");
+    g_mmb_ctx.data.user.uid       = 19820610;
+    g_mmb_ctx.data.user.gender    = 1;
+    g_mmb_ctx.data.user.age       = 32;
+    g_mmb_ctx.data.user.height    = 175;
+    g_mmb_ctx.data.user.weight    = 60;
+    g_mmb_ctx.data.user.type      = 0;
+    strcpy((char *)g_mmb_ctx.data.user.alias, "RobinMI");
 
     // Got Arg
     while ((opt = getopt_long(argc, argv, optarg_so, optarg_lo, NULL)) != -1)
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
                 strncpy(g_mmb_ctx.hci_dev, optarg, sizeof(g_mmb_ctx.hci_dev));
                 break;
             case 'b':
-                strncpy(g_mmb_ctx.miband_mac, optarg, sizeof(g_mmb_ctx.miband_mac));
+                strncpy(g_mmb_ctx.data.miband_mac, optarg, sizeof(g_mmb_ctx.data.miband_mac));
                 break;
             case 'h':
                 printf("Usage:\n\n");

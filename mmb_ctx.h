@@ -16,20 +16,29 @@
 
 #define MMB_GATT_LISTEN_TIMEOUT_SEC     10
 
-struct mmb_user_info_s {
-    union {
-        uint8_t data[20];
-        struct {
-            uint32_t uid; 
-            uint8_t  gender; 
-            uint8_t  age; 
-            uint8_t  height;
-            uint8_t  weight;
-            uint8_t  type;
-            uint8_t  alias[10];
-            uint8_t  code;
-        };
-    };
+struct mmb_user_data_s {
+    uint32_t uid; 
+    uint8_t  gender; 
+    uint8_t  age; 
+    uint8_t  height;
+    uint8_t  weight;
+    uint8_t  type;
+    uint8_t  alias[10];
+    uint8_t  code;
+};
+
+struct mmb_sensor_data_s {
+    uint16_t seq;
+    uint16_t x;
+    uint16_t y;
+    uint16_t z;
+};
+
+struct mmb_data_s {
+    char                        miband_mac[18];
+    struct mmb_user_data_s      user;
+    struct mmb_sensor_data_s    sensor;
+    struct mmb_sensor_data_s    sensor_old;
 };
 
 struct mmb_gatt_s {
@@ -44,10 +53,9 @@ struct mmb_gatt_s {
 
 typedef struct mmb_ctx_s {
     char hci_dev[6];
-    char miband_mac[18];
     struct evhr_ctx_s * evhr;
-    struct mmb_user_info_s user_info;
     struct mmb_gatt_s gatt;
+    struct mmb_data_s data;
 } MMB_CTX;
 
 #endif

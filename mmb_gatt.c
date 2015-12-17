@@ -9,6 +9,38 @@
 
 extern MMB_CTX g_mmb_ctx;
 
+static void do_update_mmb_sensor_data(uint16_t seq, uint16_t x, uint16_t y, uint16_t z)
+{
+
+    struct mmb_sensor_data_s *new, *old;
+    
+    new = &g_mmb_ctx.data.sensor;
+    old = &g_mmb_ctx.data.sensor_old;
+
+    printf("[GATT][NOTIFY][SENSOR] SEQ(%u) X(%u) Y(%u) Z(%u)\n", 
+            seq, x, y, z);
+
+    // backup to old sensor data
+    if (new->seq != 0)
+        memcpy(old, new, sizeof(struct mmb_sensor_data_s));
+
+    // update new sensor data
+    new->seq = seq;
+    new->x   = x;
+    new->y   = y;
+    new->z   = z;
+
+    // check change
+    if ((new->seq == 0x0001 && old->seq == 0xFFFF) || 
+        (new->seq == old->seq + 1))
+    {
+        printf("[GATT][NOTIFY][SENSOR][CHANGE] X(%u) Y(%u) Z(%u)\n",
+                abs(new->x - old->x),
+                abs(new->y - old->y),
+                abs(new->z - old->z));
+    }
+}
+
 static int do_gatt_listen_string_parsing(char * str)
 {
     uint16_t hnd = 0x0000;
@@ -25,18 +57,13 @@ static int do_gatt_listen_string_parsing(char * str)
             case MIBAND_CHAR_HND_SENSOR:
                 buf_len = hex_str_split_to_bytes(buf, sizeof(buf), tmp, " ");
                 if (buf_len >= 8)
-                {
-                    // sensor data
-                    printf("[GATT][NOTIFY][SENSOR] SEQ(%u) X(%u) Y(%u) Z(%u)\n", 
-                            buf[0] | buf[1]<<8,
-                            buf[2] | buf[3]<<8,
-                            buf[4] | buf[5]<<8,
-                            buf[6] | buf[7]<<8);
-                }
+                    do_update_mmb_sensor_data(
+                            buf[0] | buf[1] << 8,
+                            buf[2] | buf[3] << 8,
+                            buf[4] | buf[5] << 8,
+                            buf[6] | buf[7] << 8);
                 else
-                {
                     printf("[GATT][NOTIFY][SENSOR] Data Len Not enought! [%s]\n", tmp);
-                }
 
                 break;
             default:
@@ -219,7 +246,7 @@ int mmb_gatt_listen_start()
 
     // Start Listen
     snprintf(shell_cmd, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, MIBAND_CHAR_HND_USERINFO);
+            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.data.miband_mac, MIBAND_CHAR_HND_USERINFO);
     printf("[GATT][CMD] %s\n", shell_cmd);
 
     // popen
@@ -281,24 +308,28 @@ static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t 
 
     snprintf(cmd, CMD_BUFFER_SIZE, 
             "%s -i %s -b %s --char-write-req -a 0x%04x -n %s;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.miband_mac, hnd, buf);
+            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.data.miband_mac, hnd, buf);
     printf("[GATT][CMD] %s\n", cmd);
 
     return system(cmd);
 } 
 
-int mmb_gatt_send_user_info(struct mmb_user_info_s * user, char * miband_mac)
+int mmb_gatt_send_auth(struct mmb_data_s * data)
 {
-    uint8_t byte;
+    uint8_t byte    = 0x00;
+    uint8_t * ptr   = NULL;
+    size_t size     = 0;
+
+    ptr   = (uint8_t *) &data->user;
+    size  = sizeof(struct mmb_user_data_s);
 
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    byte = atol(miband_mac + strlen(miband_mac) - 2) & 0xFF;
-    g_mmb_ctx.user_info.code = crc8(0x00, user->data, sizeof(user->data) - 1) ^ byte;
+    byte = atol(data->miband_mac + strlen(data->miband_mac) - 2) & 0xFF;
+    data->user.code = crc8(0x00, ptr, size - 1) ^ byte;
 
     return mmb_gatt_send_char_hnd_write_req(
             MIBAND_CHAR_HND_USERINFO, 
-            user->data, 
-            sizeof(g_mmb_ctx.user_info.data));
+            ptr, size);
 }
 
 int mmb_gatt_send_sensor_notify_disable()
