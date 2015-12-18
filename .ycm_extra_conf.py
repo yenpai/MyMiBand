@@ -61,6 +61,8 @@ flags = [
 'c',
 '-I',
 '.',
+'-I',
+'../MyEventHandler',
 '-isystem',
 '/usr/include',
 '-isystem',
