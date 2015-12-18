@@ -36,8 +36,6 @@ typedef enum evhr_event_type_e {
     EVHR_EVENT_TYPE_TIMER_PERIODIC,
 } EVHR_EVENT_TYPE;
 
-typedef void (*EVHR_EVENT_CALLBACK) (void *);
-
 typedef struct evhr_ctx_s {
     int                     running;
     int                     epfd;   // epoll file descriptor
@@ -46,14 +44,17 @@ typedef struct evhr_ctx_s {
     void *                  pdata;
 } EVHR_CTX;
 
-typedef struct evhr_event_s {
+typedef struct evhr_event_s EVHR_EVENT;
+typedef void (*EVHR_EVENT_CALLBACK) (EVHR_EVENT *);
+
+struct evhr_event_s {
     int                     fd;
     EVHR_EVENT_TYPE         type;
     EVHR_EVENT_MODE         mode;
     void *                  pdata;
     EVHR_EVENT_CALLBACK     in_cb;
     EVHR_EVENT_CALLBACK     err_cb;
-} EVHR_EVENT;
+};
 
 EVHR_RTN evhr_create(EVHR_CTX ** evhr);
 EVHR_RTN evhr_release(EVHR_CTX * evhr);

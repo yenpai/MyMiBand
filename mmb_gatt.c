@@ -7,21 +7,19 @@
 #include "mmb_util.h"
 #include "evhr.h"
 
-extern MMB_CTX g_mmb_ctx;
-
-static void do_update_mmb_sensor_data(uint16_t seq, uint16_t x, uint16_t y, uint16_t z)
+static void do_update_mmb_sensor_data(MMB_CTX * mmb, uint16_t seq, uint16_t x, uint16_t y, uint16_t z)
 {
 
     struct mmb_sensor_data_s *new, *old;
     
-    new = &g_mmb_ctx.data.sensor;
-    old = &g_mmb_ctx.data.sensor_old;
+    new = &mmb->data.sensor;
+    old = &mmb->data.sensor_old;
 
     printf("[GATT][NOTIFY][SENSOR] SEQ(%u) X(%u) Y(%u) Z(%u)\n", 
             seq, x, y, z);
 
     // backup to old sensor data
-    if (new->seq != 0)
+    if (new->seq != 0 && new->x != 0 && new->y != 0)
         memcpy(old, new, sizeof(struct mmb_sensor_data_s));
 
     // update new sensor data
@@ -31,17 +29,16 @@ static void do_update_mmb_sensor_data(uint16_t seq, uint16_t x, uint16_t y, uint
     new->z   = z;
 
     // check change
-    if ((new->seq == 0x0001 && old->seq == 0xFFFF) || 
-        (new->seq == old->seq + 1))
+    if (old->seq != 0 && old->x != 0 && old->y != 0)
     {
-        printf("[GATT][NOTIFY][SENSOR][CHANGE] X(%u) Y(%u) Z(%u)\n",
-                abs(new->x - old->x),
-                abs(new->y - old->y),
-                abs(new->z - old->z));
+        printf("[GATT][NOTIFY][SENSOR][CHANGE] X(%d) Y(%d) Z(%d)\n",
+                (new->x - old->x),
+                (new->y - old->y),
+                (new->z - old->z));
     }
 }
 
-static int do_gatt_listen_string_parsing(char * str)
+static int do_gatt_listen_string_parsing(MMB_CTX * mmb, char * str)
 {
     uint16_t hnd = 0x0000;
     char tmp[CMD_BUFFER_SIZE];
@@ -58,6 +55,7 @@ static int do_gatt_listen_string_parsing(char * str)
                 buf_len = hex_str_split_to_bytes(buf, sizeof(buf), tmp, " ");
                 if (buf_len >= 8)
                     do_update_mmb_sensor_data(
+                            mmb,
                             buf[0] | buf[1] << 8,
                             buf[2] | buf[3] << 8,
                             buf[4] | buf[5] << 8,
@@ -76,8 +74,9 @@ static int do_gatt_listen_string_parsing(char * str)
     return -1;
 }
 
-static int do_gatt_listen_buffer_parsing(struct mmb_gatt_s * gatt)
+static int do_gatt_listen_buffer_parsing(MMB_CTX * mmb)
 {
+    struct mmb_gatt_s * gatt = &mmb->gatt;
     size_t end = 0;
     size_t size = gatt->buf_size;
     char * buf  = gatt->buf;
@@ -103,7 +102,7 @@ static int do_gatt_listen_buffer_parsing(struct mmb_gatt_s * gatt)
 
         // Start Parsing Command 
         curr[end] = '\0';
-        if (do_gatt_listen_string_parsing(curr) != -1)
+        if (do_gatt_listen_string_parsing(mmb, curr) != -1)
             goto next_size_p;
 
         // unknow command
@@ -161,20 +160,19 @@ static void do_gatt_listen_stop(struct mmb_gatt_s * gatt)
 
 }
 
-static void callback_gatt_listen_timeout(void *pdata)
+static void callback_gatt_listen_timeout(EVHR_EVENT * event)
 {
-    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
+    MMB_CTX * mmb = (MMB_CTX *) event->pdata;;
     printf("[GATT][TIMEOUT].\n");
-    do_gatt_listen_stop(gatt);
+    do_gatt_listen_stop(&mmb->gatt);
 }
 
-static void callback_gatt_listen_read(void * pdata)
+static void callback_gatt_listen_read(EVHR_EVENT * event)
 {
+    MMB_CTX * mmb = (MMB_CTX *) event->pdata;;
+    struct mmb_gatt_s * gatt = &mmb->gatt;
     int len = 0;
     char buf[CMD_BUFFER_SIZE];
-    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
 
     while (1)
     {
@@ -205,7 +203,7 @@ static void callback_gatt_listen_read(void * pdata)
         gatt->buf_size += len;
 
         // parsing gatt buf
-        do_gatt_listen_buffer_parsing(gatt);
+        do_gatt_listen_buffer_parsing(mmb);
 
         // Update timer
         evhr_event_set_timer(
@@ -222,31 +220,29 @@ disconnect:
     return;
 }
 
-static void callback_gatt_listen_error(void * pdata)
+static void callback_gatt_listen_error(EVHR_EVENT * event)
 {
-    EVHR_EVENT * event = (EVHR_EVENT *) pdata;
-    struct mmb_gatt_s * gatt = (struct mmb_gatt_s *) event->pdata;
-
+    MMB_CTX * mmb = (MMB_CTX *) event->pdata;
     printf("[GATT][ERROR].\n");
-    do_gatt_listen_stop(gatt);
+    do_gatt_listen_stop(&mmb->gatt);
 }
 
-int mmb_gatt_listen_start()
+int mmb_gatt_listen_start(MMB_CTX * mmb)
 {
     int fd = -1;
     char shell_cmd[CMD_BUFFER_SIZE];
-    struct mmb_gatt_s * gatt = &g_mmb_ctx.gatt;
+    struct mmb_gatt_s * gatt = &mmb->gatt;
     
     gatt->popen_fd      = NULL;
     gatt->proc_ev       = NULL;
     gatt->time_ev       = NULL;
     gatt->buf_size      = 0;
     gatt->is_running    = 0;
-    gatt->pdata         = (void *) &g_mmb_ctx;
+    gatt->pdata         = (void *) mmb;
 
     // Start Listen
     snprintf(shell_cmd, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.data.miband_mac, MIBAND_CHAR_HND_USERINFO);
+            CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, MIBAND_CHAR_HND_USERINFO);
     printf("[GATT][CMD] %s\n", shell_cmd);
 
     // popen
@@ -261,7 +257,7 @@ int mmb_gatt_listen_start()
 
     // Add popen into event handler
     gatt->proc_ev = evhr_event_add_socket(
-            g_mmb_ctx.evhr, fd, gatt,
+            mmb->evhr, fd, mmb,
             callback_gatt_listen_read, callback_gatt_listen_error);
     if (gatt->proc_ev == NULL)
     {
@@ -281,9 +277,9 @@ int mmb_gatt_listen_start()
 
     // Add timer into event handler
     gatt->time_ev = evhr_event_add_timer_periodic(
-            g_mmb_ctx.evhr, fd,
+            mmb->evhr, fd,
             MMB_GATT_LISTEN_TIMEOUT_SEC, 10, /* MMB_GATT_LISTEN_TIMEOUT_SEC + 10 nsec timeout */
-            gatt, callback_gatt_listen_timeout);
+            mmb, callback_gatt_listen_timeout);
     if (gatt->time_ev == NULL)
     {
         printf("[GATT][ERROR] timer event binding failed!\n");
@@ -291,12 +287,12 @@ int mmb_gatt_listen_start()
         return -4;
     }
 
-    g_mmb_ctx.gatt.is_running = 1;
+    mmb->gatt.is_running = 1;
 
     return 0;
 }
 
-static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t size)
+int mmb_gatt_send_char_hnd_write_req(MMB_CTX * mmb, uint8_t hnd, uint8_t * data, size_t size)
 {
     char cmd[CMD_BUFFER_SIZE];
     char buf[CMD_BUFFER_SIZE];
@@ -308,58 +304,8 @@ static int mmb_gatt_send_char_hnd_write_req(uint8_t hnd, uint8_t * data, size_t 
 
     snprintf(cmd, CMD_BUFFER_SIZE, 
             "%s -i %s -b %s --char-write-req -a 0x%04x -n %s;", 
-            CMD_GATTTOOL_PATH, g_mmb_ctx.hci_dev, g_mmb_ctx.data.miband_mac, hnd, buf);
+            CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, hnd, buf);
     printf("[GATT][CMD] %s\n", cmd);
 
     return system(cmd);
 } 
-
-int mmb_gatt_send_auth(struct mmb_data_s * data)
-{
-    uint8_t byte    = 0x00;
-    uint8_t * ptr   = NULL;
-    size_t size     = 0;
-
-    ptr   = (uint8_t *) &data->user;
-    size  = sizeof(struct mmb_user_data_s);
-
-    // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    byte = atol(data->miband_mac + strlen(data->miband_mac) - 2) & 0xFF;
-    data->user.code = crc8(0x00, ptr, size - 1) ^ byte;
-
-    return mmb_gatt_send_char_hnd_write_req(
-            MIBAND_CHAR_HND_USERINFO, 
-            ptr, size);
-}
-
-int mmb_gatt_send_sensor_notify_disable()
-{
-    int ret = 0;
-    uint8_t value[2] = {0x00, 0x00};
-
-    // Disable Sensor Data
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR, value, 2);
-    if (ret != 0)
-        return ret;
-
-    // Disable Sensor Notify
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
-    if (ret != 0)
-        return ret;
-
-    return 0;
-}
-
-int mmb_gatt_send_sensor_notify_enable()
-{
-    int ret = 0;
-    uint8_t value[2] = {0x02, 0x00};
-
-    // Enable Sensor Data
-    ret = mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR, value, 2);
-    if (ret != 0)
-        return ret;
-
-    // Endbale Sensor Notify
-    return mmb_gatt_send_char_hnd_write_req(MIBAND_CHAR_HND_SENSOR_NOTIFY, value, 2);
-}
