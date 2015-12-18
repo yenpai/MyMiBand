@@ -12,6 +12,14 @@ TARGET_LDFLAGS := $(EXTRA_LDFLAGS)
 
 OBJS    = $(addsuffix .o, $(notdir $(basename $(wildcard *.c))))
 
+EVHR_SOURCE    ?= ../MyEventHandler
+TARGET_CFLAGS  += -I$(EVHR_SOURCE)
+TARGET_LDFLAGS += -L$(EVHR_SOURCE) -levhr
+
+BLUEZ_SOURCE   ?= ../bluez-5.35
+TARGET_CFLAGS  += -I$(BLUEZ_SOURCE)
+TARGET_LDFLAGS += -lbluetooth
+
 .PHONY: all clean
 
 all: $(TARGET)
