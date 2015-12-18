@@ -51,7 +51,7 @@ static int do_gatt_listen_string_parsing(MMB_CTX * mmb, char * str)
         sscanf(str + strlen(RESPONSE_NOTIFICATION_STR) + 1, "handle = 0x%hx value: %[^\n]s", &hnd, tmp);
         switch (hnd)
         {
-            case MIBAND_CHAR_HND_SENSOR:
+            case MMB_PF_SENSOR_HND:
                 buf_len = hex_str_split_to_bytes(buf, sizeof(buf), tmp, " ");
                 if (buf_len >= 8)
                     do_update_mmb_sensor_data(
@@ -242,7 +242,7 @@ int mmb_gatt_listen_start(MMB_CTX * mmb)
 
     // Start Listen
     snprintf(shell_cmd, CMD_BUFFER_SIZE, "%s -i %s -b %s --char-read -a 0x%04x --listen;", 
-            CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, MIBAND_CHAR_HND_USERINFO);
+            CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, MMB_PF_USER_HND);
     printf("[GATT][CMD] %s\n", shell_cmd);
 
     // popen
@@ -304,6 +304,24 @@ int mmb_gatt_send_char_hnd_write_req(MMB_CTX * mmb, uint8_t hnd, uint8_t * data,
 
     snprintf(cmd, CMD_BUFFER_SIZE, 
             "%s -i %s -b %s --char-write-req -a 0x%04x -n %s;", 
+            CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, hnd, buf);
+    printf("[GATT][CMD] %s\n", cmd);
+
+    return system(cmd);
+} 
+
+int mmb_gatt_send_char_hnd_write_cmd(MMB_CTX * mmb, uint8_t hnd, uint8_t * data, size_t size)
+{
+    char cmd[CMD_BUFFER_SIZE];
+    char buf[CMD_BUFFER_SIZE];
+
+    if ((size * 2) > (CMD_BUFFER_SIZE - 1))
+        return -1;
+
+    bytes_to_hex_str(buf, data, size);
+
+    snprintf(cmd, CMD_BUFFER_SIZE, 
+            "%s -i %s -b %s --char-write -a 0x%04x -n %s;", 
             CMD_GATTTOOL_PATH, mmb->hci_dev, mmb->data.miband_mac, hnd, buf);
     printf("[GATT][CMD] %s\n", cmd);
 
