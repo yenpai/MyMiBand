@@ -2,53 +2,109 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "mmb_ctx.h"
 #include "evhr.h"
+#include "mmb_ctx.h"
+#include "mmb_miband.h"
 
 extern int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst);
 
-int mmb_miband_start(MMB_CTX * mmb);
-int mmb_miband_stop(MMB_CTX * mmb);
+static void do_task_update_timeout(MMB_CTX * mmb)
+{
+    evhr_event_set_timer(
+            mmb->ev_timeout->fd, 
+            MMB_MIBAND_TIMEOUT_SEC, 10, 0);
+}
 
-void timeout_cb(EVHR_EVENT * ev)
+static void do_task_connected(MMB_CTX * mmb)
+{
+    int ret;
+
+    /* Auth User Data */
+    if ((ret = mmb_miband_send_auth(mmb)) < 0)
+    {
+        printf("[MMB][TASK][ERR] mmb_miband_send_auth failed! ret[%d]\n", ret);
+        goto error_hanlde;
+    }
+
+    /* Disable all notify */
+    ret = mmb_miband_send_sensor_notify(mmb, 0);
+    ret = mmb_miband_send_realtime_notify(mmb, 0);
+    ret = mmb_miband_send_battery_notify(mmb, 0);
+
+    /* Enable all notify */
+    ret = mmb_miband_send_sensor_notify(mmb, 1);
+    ret = mmb_miband_send_realtime_notify(mmb, 1);
+    ret = mmb_miband_send_battery_notify(mmb, 1);
+
+    do_task_update_timeout(mmb);
+    return;
+
+error_hanlde:
+
+    printf("[MMB][TASK][ERR] Need to restart connect!\n");
+    mmb_miband_stop(mmb);
+}
+
+static void timeout_cb(EVHR_EVENT * ev)
 {
     printf("timeout\n");
-    //mmb_miband_stop((MMB_CTX *)ev->pdata);
+    mmb_miband_stop((MMB_CTX *)ev->pdata);
 }
 
 static void write_cb(EVHR_EVENT * ev)
 {
-    int ret;
-    printf("write\n");
-    uint8_t test[3] = {0x0A, 0x2c, 0x00};
-    ret = write(ev->fd, test, 3);
-    printf("write, ret[%d], errno[%d]\n", ret, errno);
+    MMB_CTX * mmb = ev->pdata;
+
+    int result;
+    socklen_t result_len = sizeof(result);
+
+    // OnConnecting Check
+    if (mmb->status == MMB_STATUS_CONNECTING)
+    {
+        if (getsockopt(ev->fd, SOL_SOCKET, SO_ERROR, &result, &result_len) < 0 || result != 0) {
+            // Connect Error
+            mmb_miband_stop((MMB_CTX *)ev->pdata);
+            return;
+        }
+
+        // Connecting
+        mmb->status = MMB_STATUS_CONNECTED;
+        do_task_connected(mmb);
+        
+    }
+
+    // Only Write OnConnected
+    if (mmb->status != MMB_STATUS_CONNECTED)
+        return;
+
+    do_task_update_timeout(mmb);
 }
 
 static void read_cb(EVHR_EVENT * ev)
 {
     
-    int size, i;
-    uint8_t buf[1024];
-    size = read(ev->fd, buf, 1024);
-    printf("read, size[%d], errno[%d]\n", size, errno);
-
-    for (i = 0; i< size;i++)
-        printf("%02x", buf[i]);
-
-    printf("\n\n");
+    MMB_CTX * mmb = ev->pdata;
+    uint8_t buf[MMB_BUFFER_SIZE];
+    int size = 0;
     
+    size = read(ev->fd, buf, MMB_BUFFER_SIZE);
+    if (size > 0)
+    {
+        mmb_miband_parsing_raw_data(mmb, buf, size);
+        do_task_update_timeout(mmb);
+    }
 }
 
 static void error_cb(EVHR_EVENT * ev)
 {
     printf("Error\n");
-    evhr_stop(((MMB_CTX *)ev->pdata)->evhr);
+    mmb_miband_stop((MMB_CTX *)ev->pdata);
 }
 
 int mmb_miband_start(MMB_CTX * mmb)
 {
     int sock = -1;
+    int timerfd = -1;
 
     // Create BLE connect
     if ((sock = mmb_ble_connect(&mmb->addr, &mmb->data.addr)) < 0)
@@ -68,7 +124,7 @@ int mmb_miband_start(MMB_CTX * mmb)
     }
 
     // Create timeout
-    if ((mmb->timerfd = evhr_event_create_timer()) < 0)
+    if ((timerfd = evhr_event_create_timer()) < 0)
     {
         printf("[MMB][MIBAND][ERROR] Create Timer failed!\n");
         mmb_miband_stop(mmb);
@@ -77,7 +133,7 @@ int mmb_miband_start(MMB_CTX * mmb)
 
     // Add timer into event handler
     if ((mmb->ev_timeout = evhr_event_add_timer_periodic(
-            mmb->evhr, mmb->timerfd,
+            mmb->evhr, timerfd,
             MMB_MIBAND_TIMEOUT_SEC, 10, 
             mmb, timeout_cb)) == NULL)
     {
@@ -86,7 +142,7 @@ int mmb_miband_start(MMB_CTX * mmb)
         return -4;
     }
 
-    mmb->status = 1;
+    mmb->status = MMB_STATUS_CONNECTING;
 
     return 0;
 }
@@ -110,7 +166,8 @@ int mmb_miband_stop(MMB_CTX * mmb)
         mmb->ev_timeout = NULL;
     }
 
-    mmb->status = 0;
+    mmb->status = MMB_STATUS_INITIAL;
+    evhr_stop(mmb->evhr);
 
     return 0;
 }

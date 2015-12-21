@@ -9,39 +9,13 @@
 #define MMB_MIBAND_TIMEOUT_SEC      10
 #define MMB_BUFFER_SIZE             512
 
-/* PROFILE UUID */
-#define MMB_PF_USER_UUID        0xff04
-#define MMB_PF_CONTROL_UUID     0xff05
-#define MMB_PF_REALTIME_UUID    0xff06
-#define MMB_PF_LEPARAM_UUID     0xff09
-#define MMB_PF_BATTERY_UUID     0xff0c
-#define MMB_PF_TEST_UUID        0xff0d
-#define MMB_PF_SENSOR_UUID      0xff0e
-#define MMB_PF_PAIR_UUID        0xff0f
-#define MMB_PF_VIBRATION_UUID   0x2a06
 
-/* PROFILE Handle */
-#define MMB_PF_USER_HND         0x0019
-#define MMB_PF_CONTROL_HND      0x001b
-#define MMB_PF_REALTIME_HND     0x001d
-#define MMB_PF_REALTIME_NOTIFY  0x001e
-#define MMB_PF_LEPARAM_HND      0x0025
-#define MMB_PF_LEPARAM_NOTIFY   0x0026
-#define MMB_PF_BATTERY_HND      0x002c
-#define MMB_PF_BATTERY_NOTIFY   0x002d
-#define MMB_PF_TEST_HND         0x002f
-#define MMB_PF_SENSOR_HND       0x0031
-#define MMB_PF_SENSOR_NOTIFY    0x0032
-#define MMB_PF_PAIR_HND         0x0034
-#define MMB_PF_VIBRATION_HND    0x0051
-
-
-enum mmb_led_mode_e {
-    MMB_LED_OFF_MODE,
-    MMB_LED_RED_MODE,
-    MMB_LED_BLUE_MODE,
-    MMB_LED_ORANGE_MODE,
-    MMB_LED_GREEN_MODE,
+enum mmb_led_color_e {
+    MMB_LED_COLOR_OFF,
+    MMB_LED_COLOR_RED,
+    MMB_LED_COLOR_BLUE,
+    MMB_LED_COLOR_ORANGE,
+    MMB_LED_COLOR_GREEN,
 };
 
 #define MMB_BATTERY_STATUS_LOW          1
@@ -87,13 +61,19 @@ struct mmb_data_s {
     struct mmb_sensor_data_s    sensor_old;
 };
 
+enum mmb_status_e {
+    MMB_STATUS_STOPPED      = -1,
+    MMB_STATUS_INITIAL      = 0,
+    MMB_STATUS_CONNECTING   = 1,
+    MMB_STATUS_CONNECTED    = 2,
+};
+
 typedef struct mmb_ctx_s {
-    uint8_t                 status;
+    enum mmb_status_e       status;
     bdaddr_t                addr;
     struct evhr_ctx_s *     evhr;
     struct evhr_event_s *   ev_ble;
     struct evhr_event_s *   ev_timeout;
-    int timerfd;
     struct mmb_data_s       data;
 } MMB_CTX;
 
