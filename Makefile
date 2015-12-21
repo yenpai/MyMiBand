@@ -18,7 +18,7 @@ TARGET_LDFLAGS += -L$(EVHR_SOURCE) -levhr
 
 #BLUEZ_SOURCE   ?= ../bluez-5.35
 #TARGET_CFLAGS  += -I$(BLUEZ_SOURCE)
-#TARGET_LDFLAGS += -lbluetooth
+TARGET_LDFLAGS += -lbluetooth
 
 .PHONY: all clean
 

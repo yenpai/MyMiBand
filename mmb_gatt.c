@@ -256,9 +256,10 @@ int mmb_gatt_listen_start(MMB_CTX * mmb)
     socket_setting_non_blocking(fd);
 
     // Add popen into event handler
+    // TODO: write_cb
     gatt->proc_ev = evhr_event_add_socket(
             mmb->evhr, fd, mmb,
-            callback_gatt_listen_read, callback_gatt_listen_error);
+            callback_gatt_listen_read, NULL, callback_gatt_listen_error);
     if (gatt->proc_ev == NULL)
     {
         printf("[GATT][ERROR] popen event binding failed!\n");

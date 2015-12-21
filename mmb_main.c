@@ -3,34 +3,32 @@
 #include <stdlib.h>
 #include <getopt.h>  
 
-#include "mmb_util.h"
 #include "mmb_ctx.h"
 #include "evhr.h"
 
-/* mmb_handle.c */ 
-extern int mmb_handle_send_auth(MMB_CTX *);
-extern int mmb_handle_send_sensor_notify_disable(MMB_CTX *);
-extern int mmb_handle_send_sensor_notify_enable(MMB_CTX *);
-extern int mmb_gatt_listen_start(MMB_CTX *); 
+/* mmb_miband.c */ 
+extern int mmb_miband_start(MMB_CTX *);
+extern int mmb_miband_stop(MMB_CTX *);
 
 int mmb_mainloop(MMB_CTX * mmb)
 {
-    while(1)
+    while (1)
     {
-        // Send Auth
-        mmb_handle_send_auth(mmb);
+        printf("[MMB][MAINLOOP] connect.\n");
 
-        // Send Sense Data Notification Disable/Enable
-        mmb_handle_send_sensor_notify_disable(mmb);
-        mmb_handle_send_sensor_notify_enable(mmb);
+        if (mmb_miband_start(mmb) < 0)
+        {
+            printf("[MMB][MAINLOOP][ERR] mmb_miband_start failed!\n");
+            goto free_next_loop;
+        }
 
-        // Start Listen
-        mmb_gatt_listen_start(mmb);
-
-        // Start Event Handler Dispatch (blocking)
+        printf("[MMB][MAINLOOP] start.\n");
         evhr_dispatch(mmb->evhr);
 
-        printf("[MMB][MAINLOOP] restart.\n");
+free_next_loop:
+
+        printf("[MMB][MAINLOOP] exit.\n");
+        mmb_miband_stop(mmb);
     }
 
     return 0;
@@ -51,10 +49,11 @@ int main(int argc, char *argv[])
 
     // Default config
     memset(&mmb, 0, sizeof(MMB_CTX));
-    strcpy(mmb.hci_dev,      "hci0");
-    strcpy(mmb.data.miband_mac,   "88:0F:10:2A:5F:08");
+    bacpy(&mmb.addr, BDADDR_ANY);
+    //str2ba("88:0F:10:2A:5F:08", &mmb.addr);
 
-    // Default UserInfo
+    // Default MiBand data
+    str2ba("88:0F:10:2A:5F:08", &mmb.data.addr);
     mmb.data.user.uid       = 19820610;
     mmb.data.user.gender    = 1;
     mmb.data.user.age       = 32;
@@ -69,10 +68,13 @@ int main(int argc, char *argv[])
         switch(opt)
         {
             case 'i':
-                strncpy(mmb.hci_dev, optarg, sizeof(mmb.hci_dev));
+                if (!strncasecmp(optarg, "hci", 3))
+                    hci_devba(atoi(optarg + 3), &mmb.addr);
+                else
+                    str2ba(optarg, &mmb.addr);
                 break;
             case 'b':
-                strncpy(mmb.data.miband_mac, optarg, sizeof(mmb.data.miband_mac));
+                str2ba(optarg, &mmb.data.addr);
                 break;
             case 'h':
                 printf("Usage:\n\n");

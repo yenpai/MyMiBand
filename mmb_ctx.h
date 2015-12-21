@@ -1,14 +1,13 @@
 #ifndef MMB_CTX_H_
 #define MMB_CTX_H_
 
-#include <stdio.h>
-#include <stdint.h>
-#include <unistd.h>
+//#include <stdint.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 
-#define CMD_BUFFER_SIZE     512
-#define CMD_GATTTOOL_PATH   "/usr/bin/gatttool"
-
-#define RESPONSE_NOTIFICATION_STR "Notification"
+#define MMB_MIBAND_TIMEOUT_SEC      10
+#define MMB_BUFFER_SIZE             512
 
 /* PROFILE UUID */
 #define MMB_PF_USER_UUID        0xff04
@@ -36,8 +35,6 @@
 #define MMB_PF_PAIR_HND         0x0034
 #define MMB_PF_VIBRATION_HND    0x0051
 
-
-#define MMB_GATT_LISTEN_TIMEOUT_SEC     10
 
 enum mmb_led_mode_e {
     MMB_LED_OFF_MODE,
@@ -83,28 +80,21 @@ struct mmb_sensor_data_s {
 };
 
 struct mmb_data_s {
-    char                        miband_mac[18];
+    bdaddr_t                    addr;
     struct mmb_user_data_s      user;
     struct mmb_batteery_data_s  battery;
     struct mmb_sensor_data_s    sensor;
     struct mmb_sensor_data_s    sensor_old;
 };
 
-struct mmb_gatt_s {
-    int     is_running;
-    FILE *  popen_fd;
-    struct  evhr_event_s * time_ev;
-    struct  evhr_event_s * proc_ev;
-    char    buf[CMD_BUFFER_SIZE * 2];
-    size_t  buf_size;
-    void *  pdata;
-};
-
 typedef struct mmb_ctx_s {
-    char hci_dev[6];
-    struct evhr_ctx_s * evhr;
-    struct mmb_gatt_s gatt;
-    struct mmb_data_s data;
+    uint8_t                 status;
+    bdaddr_t                addr;
+    struct evhr_ctx_s *     evhr;
+    struct evhr_event_s *   ev_ble;
+    struct evhr_event_s *   ev_timeout;
+    int timerfd;
+    struct mmb_data_s       data;
 } MMB_CTX;
 
 #endif
