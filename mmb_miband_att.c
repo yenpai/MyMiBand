@@ -83,7 +83,8 @@ int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
             break;
 
         case MMB_ATT_OPCODE_NOTIFICATION:
-            ret = mmb_miband_parsing_notification(mmb, (uint16_t)buf[2], (uint8_t *)&buf[4], size - 3);
+            ret = mmb_miband_parsing_notification(
+                    mmb, (uint16_t) buf[1], buf + 3, size - 3);
             break;
     }
 
