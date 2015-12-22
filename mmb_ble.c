@@ -96,6 +96,28 @@ int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst)
 
 }
 
+int mmb_ble_read_type_req(int fd, uint16_t hnd, uint16_t uuid)
+{
+    int ret;
+    uint8_t buf[7];
+    
+    buf[0] = MMB_BLE_ATT_OPCODE_READ_TYPE_REQ;
+    buf[1] = 0xFF & hnd;
+    buf[2] = 0xFF & hnd >> 8;
+    buf[3] = 0xFF & hnd;
+    buf[4] = 0xFF & hnd >> 8;
+    buf[5] = 0xFF & uuid;
+    buf[6] = 0xFF & uuid >> 8;
+ 
+    ret = write(fd, buf, 7);
+    if (ret < 0) {
+        printf("[MMB][BLE][ReadTYpeReq][ERR] hnd = 0x%04x failed!\n", hnd);
+        return -errno;
+    }
+
+    return ret;
+}
+
 int mmb_ble_read_req(int fd, uint16_t hnd)
 {
     int ret;
@@ -152,3 +174,64 @@ int mmb_ble_write_cmd(int fd, uint16_t hnd, uint8_t *val, size_t size)
     return ret;
 }
 
+int mmb_ble_att_data_parser(uint8_t *buf, size_t size, struct mmb_ble_att_data_parser_cb_s * cb, void *pdata)
+{
+    int ret = 0;
+
+    switch (buf[0])
+    {
+        case MMB_BLE_ATT_OPCODE_ERROR:
+            if (cb && cb->error_cb)
+                ret = cb->error_cb( 
+                        pdata, 
+                        (uint16_t) buf[2],
+                        buf[4]);
+            else
+                ret = -1002;
+            break;
+
+        case MMB_BLE_ATT_OPCODE_READ_TYPE_RESP:
+            if (cb && cb->read_type_resp_cb)
+                ret = cb->read_type_resp_cb( 
+                        pdata, 
+                        (uint16_t) buf[2],
+                        buf + 4,
+                        buf[1]);
+            else
+                ret = -1002;
+            break;
+        
+        case MMB_BLE_ATT_OPCODE_READ_RESP:
+            if (cb && cb->read_resp_cb)
+                ret = cb->read_resp_cb( 
+                        pdata, 
+                        buf + 1,
+                        size - 1);
+            else
+                ret = -1002;
+            break;
+
+        case MMB_BLE_ATT_OPCODE_WRITE_RESP:
+            if (cb && cb->write_resp_cb)
+                ret = cb->write_resp_cb(pdata); 
+            else
+                ret = -1002;
+            break;
+
+        case MMB_BLE_ATT_OPCODE_NOTIFICATION:
+            if (cb && cb->notify_cb)
+                ret = cb->notify_cb( 
+                        pdata, 
+                        (uint16_t) buf[1],
+                        buf + 3,
+                        size - 3);
+            else
+                ret = -1002;
+            break;
+        default:
+            ret = -1001;
+            break;
+    }
+
+    return ret;
+}

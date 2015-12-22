@@ -6,6 +6,8 @@
 
 #define MMB_BLE_ATT_CID                     0x0004
 #define MMB_BLE_ATT_OPCODE_ERROR            0x01
+#define MMB_BLE_ATT_OPCODE_READ_TYPE_REQ    0x08
+#define MMB_BLE_ATT_OPCODE_READ_TYPE_RESP   0x09
 #define MMB_BLE_ATT_OPCODE_READ_REQ         0x0A
 #define MMB_BLE_ATT_OPCODE_READ_RESP        0x0B
 #define MMB_BLE_ATT_OPCODE_WRITE_REQ        0x12
@@ -18,7 +20,18 @@
 
 int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst);
 int mmb_ble_read_req(int fd, uint16_t hnd);
+int mmb_ble_read_type_req(int fd, uint16_t hnd, uint16_t uuid);
 int mmb_ble_write_req(int fd, uint16_t hnd, uint8_t *val, size_t size);
 int mmb_ble_write_cmd(int fd, uint16_t hnd, uint8_t *val, size_t size);
+
+struct mmb_ble_att_data_parser_cb_s {
+    int (*error_cb) (void *pdata, uint16_t hnd, uint8_t error_code); 
+    int (*read_type_resp_cb) (void *pdata, uint16_t hnd, uint8_t *val, size_t size); 
+    int (*read_resp_cb) (void *pdata, uint8_t *val, size_t size); 
+    int (*write_resp_cb) (void *pdata); 
+    int (*notify_cb) (void *pdata, uint16_t hnd, uint8_t *val, size_t size); 
+};
+
+int mmb_ble_att_data_parser(uint8_t *buf, size_t size, struct mmb_ble_att_data_parser_cb_s * cb, void *pdata);
 
 #endif 

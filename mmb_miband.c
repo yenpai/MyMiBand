@@ -122,13 +122,22 @@ static void read_cb(EVHR_EVENT * ev)
     MMB_CTX * mmb = ev->pdata;
     uint8_t buf[MMB_BUFFER_SIZE];
     int size = 0;
+
+    static struct mmb_ble_att_data_parser_cb_s parser_cb = {
+        .error_cb           = mmb_miband_parser_error,
+        .read_type_resp_cb  = mmb_miband_parser_read_type_resp,
+        .read_resp_cb       = mmb_miband_parser_read_resp,
+        .write_resp_cb      = mmb_miband_parser_write_resp,
+        .notify_cb          = mmb_miband_parser_notify,
+    };
     
     size = read(ev->fd, buf, MMB_BUFFER_SIZE);
     if (size > 0)
     {
-        mmb_miband_parsing_raw_data(mmb, buf, size);
+        mmb_ble_att_data_parser(buf, size, &parser_cb, mmb);
         do_task_update_timeout(mmb);
     }
+
 }
 
 static void error_cb(EVHR_EVENT * ev)

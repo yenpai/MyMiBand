@@ -112,8 +112,45 @@ static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t si
     return 0;
 }
 
-static int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t *val, size_t size)
+int mmb_miband_parser_error(void *UNUSED(pdata), uint16_t hnd, uint8_t error_code)
 {
+    printf("[MMB][MIBAND][PARSER-ERR] HND = 0x%04x, ErrCode = %d.\n", hnd, error_code);
+    return 0;
+}
+
+int mmb_miband_parser_read_type_resp(void *pdata, uint16_t hnd, uint8_t *val, size_t size)
+{
+    int ret = 0;
+    MMB_CTX * mmb = pdata;
+
+    switch (hnd)
+    {
+        case MMB_PF_HND_BATTERY:
+            ret = mmb_miband_update_battery_data(mmb, val, size);
+            break;
+
+        default:
+            printf("[MMB][MIBAND][PARSER-ReadTypeResp] unknow HND = 0x%04x.\n", hnd);
+            ret = -1;
+            break;
+    }
+
+    return ret;
+}
+
+int mmb_miband_parser_read_resp(void *UNUSED(pdata), uint8_t *UNUSED(val), size_t UNUSED(size))
+{
+    return 0;
+}
+
+int mmb_miband_parser_write_resp(void * UNUSED(pdata))
+{
+    return 0;
+}
+
+int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t size)
+{
+    MMB_CTX * mmb = pdata;
     int ret = 0;
     size_t i = 0;
 
@@ -137,42 +174,6 @@ static int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t 
                 printf("%02x", val[i]);
             printf("\n");
             ret = -1;
-            break;
-    }
-
-    return ret;
-}
-
-int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
-{
-    size_t i = 0;
-    int ret = 0;
-
-    switch (buf[0])
-    {
-        case MMB_BLE_ATT_OPCODE_ERROR:
-            printf("[MMB][MIBAND][ERROR]");
-            printf(" ReqOpcode[0x%02x]", buf[1]);
-            printf(" Hnd[0x%02x%02x]", buf[3], buf[2]);
-            printf(" ErrCode[0x%02x]", buf[4]);
-            printf("\n");
-            ret = -1;
-            break;
-
-        case MMB_BLE_ATT_OPCODE_READ_RESP:
-            printf("[MMB][MIBAND][READ_RESP]\n\t");
-            for (i=1;i<size;i++)
-                printf("%02x ", buf[i]);
-            printf("\n");
-            break;
-
-        case MMB_BLE_ATT_OPCODE_WRITE_RESP:
-            //printf("[MMB][MIBAND][WRITE_RESP]\n");
-            break;
-
-        case MMB_BLE_ATT_OPCODE_NOTIFICATION:
-            ret = mmb_miband_parsing_notification(
-                    mmb, (uint16_t) buf[1], buf + 3, size - 3);
             break;
     }
 
@@ -287,5 +288,5 @@ int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
 
 int mmb_miband_send_battery_read(MMB_CTX * mmb)
 {
-    return mmb_ble_read_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY);
+    return mmb_ble_read_type_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY, MMB_PF_UUID_BATTERY);
 }

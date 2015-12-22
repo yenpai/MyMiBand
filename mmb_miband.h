@@ -16,8 +16,6 @@ int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable);
 int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode);
 int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color);
 
-int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size);
-
 int mmb_miband_send_battery_read(MMB_CTX * mmb);
 
 /* LED COLOR = 0x(on/off)(B)(G)(R) */
@@ -39,6 +37,12 @@ int mmb_miband_send_battery_read(MMB_CTX * mmb);
 #define MMB_VIBRATION_WITH_LED      1
 #define MMB_VIBRATION_10_WITH_LED   2
 #define MMB_VIBRATION_WITHOUT_LED   3
+
+int mmb_miband_parser_error(void *pdata, uint16_t hnd, uint8_t error_code);
+int mmb_miband_parser_read_type_resp(void *pdata, uint16_t hnd, uint8_t *val, size_t size);
+int mmb_miband_parser_read_resp(void *pdata, uint8_t *val, size_t size);
+int mmb_miband_parser_write_resp(void *pdata);
+int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t size);
 
 #endif /* ifndef MMB_MIBAND_H_ */
 
