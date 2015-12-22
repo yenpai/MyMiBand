@@ -9,10 +9,10 @@
 #define MMB_MIBAND_TIMEOUT_SEC      10
 #define MMB_BUFFER_SIZE             512
 
-#define MMB_BATTERY_STATUS_LOW          1
-#define MMB_BATTERY_STATUS_CHARGING     2
-#define MMB_BATTERY_STATUS_FULL         3
-#define MMB_BATTERY_STATUS_NOT_CHARGING 4
+#define MMB_BATTERY_STATUS_LOW              1
+#define MMB_BATTERY_STATUS_CHARGING         2
+#define MMB_BATTERY_STATUS_FULL             3
+#define MMB_BATTERY_STATUS_NOT_CHARGING     4
 
 struct mmb_batteery_data_s {
     uint8_t     level;
@@ -49,7 +49,6 @@ struct mmb_data_s {
     struct mmb_user_data_s      user;
     struct mmb_batteery_data_s  battery;
     struct mmb_sensor_data_s    sensor;
-    struct mmb_sensor_data_s    sensor_old;
 };
 
 enum mmb_status_e {
@@ -65,6 +64,7 @@ typedef struct mmb_ctx_s {
     struct evhr_ctx_s *     evhr;
     struct evhr_event_s *   ev_ble;
     struct evhr_event_s *   ev_timeout;
+    struct evhr_event_s *   ev_led_timer;
     struct mmb_data_s       data;
 } MMB_CTX;
 

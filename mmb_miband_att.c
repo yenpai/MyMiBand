@@ -1,7 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
+
 
 #include "evhr.h"
 #include "mmb_ctx.h"
@@ -43,16 +45,75 @@
 #define MMB_PF_HND_PAIR             0x0034
 #define MMB_PF_HND_VIBRATION        0x0051
 
-int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t *val, size_t size)
+int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint16_t seq, uint16_t x, uint16_t y, uint16_t z)
 {
-    size_t i = 0;
-    printf("[MMB][MIBAND][NOTIFICATION]");
-    printf(" Hnd[0x%04x]\n\t", hnd);
-    for (i=0;i<size;i++)
-        printf("%02x ", val[i]);
-    printf("\n");
+    struct mmb_sensor_data_s * sensor = &mmb->data.sensor;
+    int diff_x, diff_y, diff_z;
+    uint8_t action = 0;
+
+    // Check old data exist
+    if (!(sensor->seq == 0 && sensor->x == 0 && sensor->y == 0 && sensor->z == 0))
+    {
+        // check seq
+        if (sensor->seq == seq)
+            return -1;
+
+        // check new/old data diff
+        diff_x = (x - sensor->x);
+        diff_y = (y - sensor->y);
+        diff_z = (z - sensor->z);
+
+        // ignore x/y/z diff less 64
+        if (abs(diff_x) > 64)
+            action |= 0x1;
+        if (abs(diff_y) > 64)
+            action |= 0x2;
+        if (abs(diff_z) > 64)
+            action |= 0x4;
+
+        if (action)
+        {
+            // Send Notify!
+            printf("[MMB][MIBAND][UPDATE][SENSOR] X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
+        }
+    }
+
+    mmb->data.sensor.seq = seq;
+    mmb->data.sensor.x   = x;
+    mmb->data.sensor.y   = y;
+    mmb->data.sensor.z   = z;
 
     return 0;
+}
+
+int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t *val, size_t size)
+{
+    int ret = 0;
+    size_t i = 0;
+
+    switch (hnd)
+    {
+        case MMB_PF_HND_SENSOR:
+
+            ret = mmb_miband_update_sensor_data(
+                    mmb,
+                    val[0] | val[1] << 8,
+                    val[2] | val[3] << 8,
+                    val[4] | val[5] << 8,
+                    val[6] | val[7] << 8);
+
+            break;
+
+        default:
+            printf("[MMB][MIBAND][NOTIFICATION] unknow hnd[0x%04x] size[%ld]", hnd, size);
+            for (i=0;i<size;i++)
+                printf("%02x", val[i]);
+            printf("\n");
+            ret = -1;
+            break;
+    }
+
+    return ret;
 }
 
 int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
@@ -79,7 +140,7 @@ int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
             break;
 
         case MMB_ATT_OPCODE_WRITE_RESP:
-            printf("[MMB][MIBAND][WRITE_RESP]\n");
+            //printf("[MMB][MIBAND][WRITE_RESP]\n");
             break;
 
         case MMB_ATT_OPCODE_NOTIFICATION:
@@ -97,7 +158,7 @@ static int mmb_miband_write_req(int fd, uint16_t hnd, uint8_t *val, size_t size)
     int ret;
     uint8_t buf[MMB_BUFFER_SIZE];
     
-    printf("[MMB][MIBAND][WriteReq] hnd=0x%04x size=%lu.\n", hnd, size);
+    //printf("[MMB][MIBAND][WriteReq] hnd=0x%04x size=%lu.\n", hnd, size);
 
     buf[0] = MMB_ATT_OPCODE_WRITE_REQ;
     buf[1] = 0xFF & hnd;
@@ -119,7 +180,7 @@ static int mmb_miband_write_cmd(int fd, uint16_t hnd, uint8_t *val, size_t size)
     int ret;
     uint8_t buf[MMB_BUFFER_SIZE];
     
-    printf("[MMB][MIBAND][WriteCmd] hnd=0x%04x size=%lu.\n", hnd, size);
+    //printf("[MMB][MIBAND][WriteCmd] hnd=0x%04x size=%lu.\n", hnd, size);
 
     buf[0] = MMB_ATT_OPCODE_WRITE_CMD;
     buf[1] = 0xFF & hnd;
@@ -163,9 +224,9 @@ int mmb_miband_send_realtime_notify(MMB_CTX * mmb, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME, value, 2);
-    if (ret < 0)
-        return ret;
+    //ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME, value, 2);
+    //if (ret < 0)
+    //    return ret;
 
     // Disable Notify
     ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME_NOTIFY, value, 2);
@@ -204,9 +265,9 @@ int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable)
     if (enable)
         value[0] = enable;
 
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY, value, 2);
-    if (ret < 0)
-        return ret;
+    //ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY, value, 2);
+    //if (ret < 0)
+    //    return ret;
 
     ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY_NOTIFY, value, 2);
     if (ret < 0)
@@ -237,71 +298,6 @@ int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
     buf[2] = 0xFF & color >> 8 ; // G
     buf[3] = 0xFF & color >> 16; // B
     buf[4] = 0xFF & color >> 24; // onoff
-
-    printf("%08x\n", color);
-    printf("%02x %02x %02x %02x\n", buf[1], buf[2], buf[3], buf[4]);
-#if 0
-    switch (mode)
-    {
-        case MMB_LED_COLOR_RED:
-            buf[1] = 6;
-            buf[2] = 0;
-            buf[3] = 0;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_GREEN:
-            buf[1] = 0;
-            buf[2] = 6;
-            buf[3] = 0;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_BLUE:
-            buf[0] = 14;
-            buf[1] = 0;
-            buf[2] = 0;
-            buf[3] = 6;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_YELLOW:
-            buf[0] = 14;
-            buf[1] = 6;
-            buf[2] = 6;
-            buf[3] = 0;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_ORANGE:
-            buf[0] = 14;
-            buf[1] = 6;
-            buf[2] = 3;
-            buf[3] = 0;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_WHITE:
-            buf[0] = 14;
-            buf[1] = 6;
-            buf[2] = 6;
-            buf[3] = 6;
-            buf[4] = 1;
-            break;
-
-        case MMB_LED_COLOR_OFF:
-            buf[0] = 14;
-            buf[1] = 0;
-            buf[2] = 0;
-            buf[3] = 0;
-            buf[4] = 1;
-            break;
-
-        default:
-            return -1;
-            break;
-    }
-#endif
 
     return mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
 }

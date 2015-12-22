@@ -14,8 +14,6 @@ int mmb_mainloop(MMB_CTX * mmb)
 {
     while (1)
     {
-        printf("[MMB][MAINLOOP] connect.\n");
-
         if (mmb_miband_start(mmb) < 0)
         {
             printf("[MMB][MAINLOOP][ERR] mmb_miband_start failed!\n");

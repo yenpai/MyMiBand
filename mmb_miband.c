@@ -15,93 +15,64 @@ static void do_task_update_timeout(MMB_CTX * mmb)
             MMB_MIBAND_TIMEOUT_SEC, 10, 0);
 }
 
+static void led_timer_cb(EVHR_EVENT * ev)
+{
+    MMB_CTX * mmb = ev->pdata;
+    int next_sec = 5;
+    int next_usec = 0;
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_BLUE);
+
+    // Bind next timer
+    evhr_event_set_timer(ev->fd, next_sec, next_usec, 1);
+}
+
 static void do_task_connected(MMB_CTX * mmb)
 {
     int ret;
+    int timerfd;
+
+    printf("[MMB][MIBAND] Connected Task.\n");
 
     /* Auth User Data */
     if ((ret = mmb_miband_send_auth(mmb)) < 0)
     {
-        printf("[MMB][TASK][ERR] mmb_miband_send_auth failed! ret[%d]\n", ret);
+        printf("[MMB][MIBAND][ERR] mmb_miband_send_auth failed! ret[%d]\n", ret);
         goto error_hanlde;
     }
 
-#if 0
     /* Disable all notify */
     ret = mmb_miband_send_sensor_notify(mmb, 0);
     ret = mmb_miband_send_realtime_notify(mmb, 0);
     ret = mmb_miband_send_battery_notify(mmb, 0);
 
+    /* Off LED and Vibration */
+    ret = mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    ret = mmb_miband_send_vibration(mmb, MMB_VIBRATION_STOP);
+
     /* Enable all notify */
     ret = mmb_miband_send_sensor_notify(mmb, 1);
     ret = mmb_miband_send_realtime_notify(mmb, 1);
     ret = mmb_miband_send_battery_notify(mmb, 1);
-#endif
 
+    // Create timeout
+    if ((timerfd = evhr_event_create_timer()) < 0)
+    {
+        printf("[MMB][MIBAND][ERR] Create LED Timer failed!\n");
+    }
+    else
+    {
+        // Add timer into event handler
+        if ((mmb->ev_led_timer = evhr_event_add_timer_once(
+                        mmb->evhr, timerfd,
+                        1, 0, mmb, led_timer_cb)) == NULL)
+        {
+            printf("[MMB][MIBAND][ERR] Bind LED Timer event failed!\n");
+        }
+    }
 
-    //mmb_miband_send_vibration(mmb, 1);
-    //sleep(5);
 
     do_task_update_timeout(mmb);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, 0x01000007UL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x01000008UL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x01000009UL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x0100000AUL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x0100000BUL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x0100000CUL);
-    usleep(800000);
-    mmb_miband_send_ledcolor(mmb, 0x0100000BUL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x0100000AUL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x01000009UL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x01000008UL);
-    usleep(100000);
-    mmb_miband_send_ledcolor(mmb, 0x01000007UL);
-    usleep(100000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_GREEN);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_BLUE);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_YELLOW);
-    usleep(200000);
-    
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_ORANGE);
-    usleep(200000);
-    
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
-
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_WHITE);
-    usleep(200000);
-    
-    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
-    usleep(200000);
 
     return;
 
@@ -172,6 +143,8 @@ int mmb_miband_start(MMB_CTX * mmb)
     int sock = -1;
     int timerfd = -1;
 
+    printf("[MMB][MIBAND] Start.\n");
+
     // Create BLE connect
     if ((sock = mmb_ble_connect(&mmb->addr, &mmb->data.addr)) < 0)
     {
@@ -208,7 +181,12 @@ int mmb_miband_start(MMB_CTX * mmb)
         return -4;
     }
 
+    // Rest some miband data
+    memset(&mmb->data.sensor,  0, sizeof(struct mmb_sensor_data_s));
+    memset(&mmb->data.battery, 0, sizeof(struct mmb_batteery_data_s));
+
     mmb->status = MMB_STATUS_CONNECTING;
+    printf("[MMB][MIBAND] Connecting.\n");
 
     return 0;
 }
@@ -231,9 +209,20 @@ int mmb_miband_stop(MMB_CTX * mmb)
         evhr_event_del(mmb->evhr, mmb->ev_timeout);
         mmb->ev_timeout = NULL;
     }
+    
+    if (mmb->ev_led_timer) {
+        if (mmb->ev_led_timer->fd > 0) {
+            evhr_event_stop_timer(mmb->ev_led_timer->fd);
+            close(mmb->ev_led_timer->fd);
+        }
+        evhr_event_del(mmb->evhr, mmb->ev_led_timer);
+        mmb->ev_led_timer = NULL;
+    }
 
     mmb->status = MMB_STATUS_INITIAL;
     evhr_stop(mmb->evhr);
+
+    printf("[MMB][MIBAND] Stop.\n");
 
     return 0;
 }

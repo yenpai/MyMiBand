@@ -27,5 +27,16 @@ int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size);
 #define MMB_LED_COLOR_ORANGE    0x01000306UL
 #define MMB_LED_COLOR_WHITE     0x01060606UL
 
+#define MMB_LED_COLOR_LEVEL(COLOR, LEVEL) ( \
+        (COLOR & 0xFF000000UL) | \
+        (((COLOR >> 16 & 0xFF) * LEVEL / 6) << 16 ) | \
+        (((COLOR >> 8  & 0xFF) * LEVEL / 6) << 8  ) | \
+        (((COLOR       & 0xFF) * LEVEL / 6)       ) )
+
+#define MMB_VIBRATION_STOP          0
+#define MMB_VIBRATION_WITH_LED      1
+#define MMB_VIBRATION_10_WITH_LED   2
+#define MMB_VIBRATION_WITHOUT_LED   3
+
 #endif /* ifndef MMB_MIBAND_H_ */
 
