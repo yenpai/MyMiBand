@@ -4,20 +4,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-
 #include "evhr.h"
 #include "mmb_ctx.h"
+#include "mmb_ble.h"
 #include "mmb_util.h"
-
-/* BLE ATT OPCODE */
-#define MMB_ATT_OPCODE_ERROR            0x01
-#define MMB_ATT_OPCODE_READ_REQ         0x0A
-#define MMB_ATT_OPCODE_READ_RESP        0x0B
-#define MMB_ATT_OPCODE_WRITE_REQ        0x12
-#define MMB_ATT_OPCODE_WRITE_RESP       0x13
-#define MMB_ATT_OPCODE_WRITE_CMD        0x52
-#define MMB_ATT_OPCODE_NOTIFICATION     0x1B
-#define MMB_ATT_OPCODE_INDICATION       0x1D
 
 /* PROFILE UUID */
 #define MMB_PF_UUID_USER            0xff04
@@ -45,23 +35,63 @@
 #define MMB_PF_HND_PAIR             0x0034
 #define MMB_PF_HND_VIBRATION        0x0051
 
-int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint16_t seq, uint16_t x, uint16_t y, uint16_t z)
+static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
 {
-    struct mmb_sensor_data_s * sensor = &mmb->data.sensor;
+    struct mmb_battery_data_s * old = &mmb->data.battery;
+    size_t data_size = sizeof(struct mmb_battery_data_s);
+
+    if (size < data_size)
+    {
+        printf("[MMB][MIBAND][BATTERY] data size[%ld] less than %lu bytes, ignore.\n", 
+                size, data_size);
+        return -1;
+    }
+    
+    if (memcmp(old, buf, data_size) == 0)
+    {
+        printf("[MMB][MIBAND][BATTERY] data no change, ignore.\n");
+        return -2;
+    }
+
+    memcpy(old, buf, data_size);
+    
+    printf("[MMB][MIBAND][BATTERY][UPDATE]");
+    printf(" Level[%d]", old->level);
+    printf(" Date[%d-%d-%d]", old->dt_year, old->dt_month, old->dt_day);
+    printf(" Time[%d:%d:%d]", old->dt_hour, old->dt_minute, old->dt_second);
+    printf(" Cycle[%d]", old->cycle);
+    printf(" Status[%d]\n", old->status);
+    
+    return 0;
+}
+
+static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
+{
+    struct mmb_sensor_data_s * old = &mmb->data.sensor;
+    struct mmb_sensor_data_s new; 
+    size_t data_size = sizeof(struct mmb_sensor_data_s);
     int diff_x, diff_y, diff_z;
     uint8_t action = 0;
 
+    if (size < data_size)
+    {
+        printf("[MMB][MIBAND][SENSOR] data size[%ld] less than %lu bytes, ignore.\n", 
+                size, data_size);
+        return -1;
+    }
+    memcpy(&new, buf, data_size);
+
     // Check old data exist
-    if (!(sensor->seq == 0 && sensor->x == 0 && sensor->y == 0 && sensor->z == 0))
+    if (!(old->seq == 0 && old->x == 0 && old->y == 0 && old->z == 0))
     {
         // check seq
-        if (sensor->seq == seq)
-            return -1;
+        if (old->seq == new.seq)
+            return -2;
 
         // check new/old data diff
-        diff_x = (x - sensor->x);
-        diff_y = (y - sensor->y);
-        diff_z = (z - sensor->z);
+        diff_x = (new.x - old->x);
+        diff_y = (new.y - old->y);
+        diff_z = (new.z - old->z);
 
         // ignore x/y/z diff less 64
         if (abs(diff_x) > 64)
@@ -74,38 +104,35 @@ int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint16_t seq, uint16_t x, uint1
         if (action)
         {
             // Send Notify!
-            printf("[MMB][MIBAND][UPDATE][SENSOR] X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
+            printf("[MMB][MIBAND][SENSOR][UPDATE] X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
         }
     }
 
-    mmb->data.sensor.seq = seq;
-    mmb->data.sensor.x   = x;
-    mmb->data.sensor.y   = y;
-    mmb->data.sensor.z   = z;
-
+    memcpy(old, &new, data_size);
     return 0;
 }
 
-int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t *val, size_t size)
+static int mmb_miband_parsing_notification(MMB_CTX * mmb, uint16_t hnd, uint8_t *val, size_t size)
 {
     int ret = 0;
     size_t i = 0;
 
     switch (hnd)
     {
+        case MMB_PF_HND_REALTIME:
+            printf("[MMB][MIBAND][REALTIME][UPDATE] \n");
+            break;
+
+        case MMB_PF_HND_BATTERY:
+            ret = mmb_miband_update_battery_data(mmb, val, size);
+            break;
+
         case MMB_PF_HND_SENSOR:
-
-            ret = mmb_miband_update_sensor_data(
-                    mmb,
-                    val[0] | val[1] << 8,
-                    val[2] | val[3] << 8,
-                    val[4] | val[5] << 8,
-                    val[6] | val[7] << 8);
-
+            ret = mmb_miband_update_sensor_data(mmb, val, size);
             break;
 
         default:
-            printf("[MMB][MIBAND][NOTIFICATION] unknow hnd[0x%04x] size[%ld]", hnd, size);
+            printf("[MMB][MIBAND][NOTIFICATION] unknow hnd[0x%04x] size[%ld] ", hnd, size);
             for (i=0;i<size;i++)
                 printf("%02x", val[i]);
             printf("\n");
@@ -123,7 +150,7 @@ int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
 
     switch (buf[0])
     {
-        case MMB_ATT_OPCODE_ERROR:
+        case MMB_BLE_ATT_OPCODE_ERROR:
             printf("[MMB][MIBAND][ERROR]");
             printf(" ReqOpcode[0x%02x]", buf[1]);
             printf(" Hnd[0x%02x%02x]", buf[3], buf[2]);
@@ -132,67 +159,23 @@ int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
             ret = -1;
             break;
 
-        case MMB_ATT_OPCODE_READ_RESP:
+        case MMB_BLE_ATT_OPCODE_READ_RESP:
             printf("[MMB][MIBAND][READ_RESP]\n\t");
             for (i=1;i<size;i++)
                 printf("%02x ", buf[i]);
             printf("\n");
             break;
 
-        case MMB_ATT_OPCODE_WRITE_RESP:
+        case MMB_BLE_ATT_OPCODE_WRITE_RESP:
             //printf("[MMB][MIBAND][WRITE_RESP]\n");
             break;
 
-        case MMB_ATT_OPCODE_NOTIFICATION:
+        case MMB_BLE_ATT_OPCODE_NOTIFICATION:
             ret = mmb_miband_parsing_notification(
                     mmb, (uint16_t) buf[1], buf + 3, size - 3);
             break;
     }
 
-    return ret;
-}
-
-static int mmb_miband_write_req(int fd, uint16_t hnd, uint8_t *val, size_t size)
-{
-
-    int ret;
-    uint8_t buf[MMB_BUFFER_SIZE];
-    
-    //printf("[MMB][MIBAND][WriteReq] hnd=0x%04x size=%lu.\n", hnd, size);
-
-    buf[0] = MMB_ATT_OPCODE_WRITE_REQ;
-    buf[1] = 0xFF & hnd;
-    buf[2] = 0xFF & hnd >> 8;
-    memcpy(buf+3, val, size);
-
-    ret = write(fd, buf, size + 3);
-    if (ret < 0) {
-        printf("[MMB][MIBAND][WriteReq][ERR] hnd=0x%04x failed!\n", hnd);
-        return -errno;
-    }
-    
-    return ret;
-}
-
-static int mmb_miband_write_cmd(int fd, uint16_t hnd, uint8_t *val, size_t size)
-{
-
-    int ret;
-    uint8_t buf[MMB_BUFFER_SIZE];
-    
-    //printf("[MMB][MIBAND][WriteCmd] hnd=0x%04x size=%lu.\n", hnd, size);
-
-    buf[0] = MMB_ATT_OPCODE_WRITE_CMD;
-    buf[1] = 0xFF & hnd;
-    buf[2] = 0xFF & hnd >> 8;
-    memcpy(buf+3, val, size);
-
-    ret = write(fd, buf, size + 3);
-    if (ret < 0) {
-        printf("[MMB][MIBAND][WriteCmd][ERR] hnd = 0x%04x failed!\n", hnd);
-        return -errno;
-    }
-    
     return ret;
 }
 
@@ -208,7 +191,7 @@ int mmb_miband_send_auth(MMB_CTX * mmb)
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
     mmb->data.user.code = crc8(0x00, ptr, size - 1) ^ (mmb->data.addr.b[0] & 0xFF);
 
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_USER, ptr, size);
+    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_USER, ptr, size);
     if (ret < 0)
         return ret;
 
@@ -229,7 +212,7 @@ int mmb_miband_send_realtime_notify(MMB_CTX * mmb, uint8_t enable)
     //    return ret;
 
     // Disable Notify
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -245,12 +228,12 @@ int mmb_miband_send_sensor_notify(MMB_CTX * mmb, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR, value, 2);
+    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR, value, 2);
     if (ret < 0)
         return ret;
 
     // Disable Notify
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -269,7 +252,7 @@ int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable)
     //if (ret < 0)
     //    return ret;
 
-    ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -287,7 +270,7 @@ int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode)
 
     uint8_t buf[1];
     buf[0] = mode;
-    return mmb_miband_write_cmd(mmb->ev_ble->fd, MMB_PF_HND_VIBRATION, buf, 1);
+    return mmb_ble_write_cmd(mmb->ev_ble->fd, MMB_PF_HND_VIBRATION, buf, 1);
 }
 
 int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
@@ -299,6 +282,10 @@ int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
     buf[3] = 0xFF & color >> 16; // B
     buf[4] = 0xFF & color >> 24; // onoff
 
-    return mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
+    return mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
 }
 
+int mmb_miband_send_battery_read(MMB_CTX * mmb)
+{
+    return mmb_ble_read_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY);
+}

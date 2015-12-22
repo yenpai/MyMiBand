@@ -14,7 +14,7 @@
 #define MMB_BATTERY_STATUS_FULL             3
 #define MMB_BATTERY_STATUS_NOT_CHARGING     4
 
-struct mmb_batteery_data_s {
+struct mmb_battery_data_s {
     uint8_t     level;
     uint8_t     dt_year;
     uint8_t     dt_month;
@@ -47,7 +47,7 @@ struct mmb_sensor_data_s {
 struct mmb_data_s {
     bdaddr_t                    addr;
     struct mmb_user_data_s      user;
-    struct mmb_batteery_data_s  battery;
+    struct mmb_battery_data_s   battery;
     struct mmb_sensor_data_s    sensor;
 };
 

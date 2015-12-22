@@ -2,17 +2,13 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/l2cap.h>
-
-//#include "mmb_ctx.h"
+#include "mmb_ble.h"
 #include "mmb_util.h"
 
 static int l2cap_socket_create()
 {
     // Connection-oriented (SOCK_SEQPACKET)
     // Connectionless (SOCK_DGRAM)
-    
     return socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
 }
 
@@ -28,7 +24,6 @@ static int l2cap_bind(int sock, const bdaddr_t *src, uint8_t src_type, uint16_t 
         addr.l2_cid = htobs(cid);
     else
         addr.l2_psm = htobs(psm);
-
 
     if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0)
     {
@@ -64,7 +59,6 @@ static int l2cap_connect(int sock, const bdaddr_t *dst, uint8_t dst_type, uint16
     return 0;
 }
 
-#define ATT_CID 0x0004
 int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst)
 {
 
@@ -83,15 +77,15 @@ int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst)
         close(sock);
         return -2;
     }
-
-    if (l2cap_bind(sock, src, BDADDR_LE_PUBLIC, 0, ATT_CID) < 0)
+    
+    if (l2cap_bind(sock, src, BDADDR_LE_PUBLIC, 0, MMB_BLE_ATT_CID) < 0)
     {
         printf("l2cap_bind failed!\n");
         close(sock);
         return -3;
     }
 
-    if (l2cap_connect(sock, dst, BDADDR_LE_PUBLIC, 0, ATT_CID) < 0)
+    if (l2cap_connect(sock, dst, BDADDR_LE_PUBLIC, 0, MMB_BLE_ATT_CID) < 0)
     {
         printf("l2cap_connect failed!\n");
         close(sock);
@@ -100,5 +94,61 @@ int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst)
 
     return sock;
 
+}
+
+int mmb_ble_read_req(int fd, uint16_t hnd)
+{
+    int ret;
+    uint8_t buf[3];
+    
+    buf[0] = MMB_BLE_ATT_OPCODE_READ_REQ;
+    buf[1] = 0xFF & hnd;
+    buf[2] = 0xFF & hnd >> 8;
+ 
+    ret = write(fd, buf, 3);
+    if (ret < 0) {
+        printf("[MMB][BLE][ReadReq][ERR] hnd = 0x%04x failed!\n", hnd);
+        return -errno;
+    }
+
+    return ret;
+}
+
+int mmb_ble_write_req(int fd, uint16_t hnd, uint8_t *val, size_t size)
+{
+    int ret;
+    uint8_t buf[MMB_BLE_BUFFER_MAX];
+    
+    buf[0] = MMB_BLE_ATT_OPCODE_WRITE_REQ;
+    buf[1] = 0xFF & hnd;
+    buf[2] = 0xFF & hnd >> 8;
+    memcpy(buf+3, val, size);
+
+    ret = write(fd, buf, size + 3);
+    if (ret < 0) {
+        printf("[MMB][BLE][WriteReq][ERR] hnd=0x%04x failed!\n", hnd);
+        return -errno;
+    }
+    
+    return ret;
+}
+
+int mmb_ble_write_cmd(int fd, uint16_t hnd, uint8_t *val, size_t size)
+{
+    int ret;
+    uint8_t buf[MMB_BLE_BUFFER_MAX];
+
+    buf[0] = MMB_BLE_ATT_OPCODE_WRITE_CMD;
+    buf[1] = 0xFF & hnd;
+    buf[2] = 0xFF & hnd >> 8;
+    memcpy(buf+3, val, size);
+
+    ret = write(fd, buf, size + 3);
+    if (ret < 0) {
+        printf("[MMB][BLE][WriteCmd][ERR] hnd = 0x%04x failed!\n", hnd);
+        return -errno;
+    }
+    
+    return ret;
 }
 

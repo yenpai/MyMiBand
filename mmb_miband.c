@@ -4,9 +4,8 @@
 
 #include "evhr.h"
 #include "mmb_ctx.h"
+#include "mmb_ble.h"
 #include "mmb_miband.h"
-
-extern int mmb_ble_connect(const bdaddr_t * src, const bdaddr_t * dst);
 
 static void do_task_update_timeout(MMB_CTX * mmb)
 {
@@ -18,13 +17,12 @@ static void do_task_update_timeout(MMB_CTX * mmb)
 static void led_timer_cb(EVHR_EVENT * ev)
 {
     MMB_CTX * mmb = ev->pdata;
-    int next_sec = 5;
-    int next_usec = 0;
 
+    // Flush LED
     mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_BLUE);
 
     // Bind next timer
-    evhr_event_set_timer(ev->fd, next_sec, next_usec, 1);
+    evhr_event_set_timer(ev->fd, 5, 0, 1);
 }
 
 static void do_task_connected(MMB_CTX * mmb)
@@ -55,7 +53,10 @@ static void do_task_connected(MMB_CTX * mmb)
     ret = mmb_miband_send_realtime_notify(mmb, 1);
     ret = mmb_miband_send_battery_notify(mmb, 1);
 
-    // Create timeout
+    /* Update all information */
+    ret = mmb_miband_send_battery_read(mmb);
+
+    /* Create LED timer */
     if ((timerfd = evhr_event_create_timer()) < 0)
     {
         printf("[MMB][MIBAND][ERR] Create LED Timer failed!\n");
@@ -70,9 +71,6 @@ static void do_task_connected(MMB_CTX * mmb)
             printf("[MMB][MIBAND][ERR] Bind LED Timer event failed!\n");
         }
     }
-
-
-    do_task_update_timeout(mmb);
 
     return;
 
@@ -104,10 +102,11 @@ static void write_cb(EVHR_EVENT * ev)
             return;
         }
 
-        // Connecting
+        // Connected
         mmb->status = MMB_STATUS_CONNECTED;
+        printf("[MMB][MIBAND] Connected.\n");
+
         do_task_connected(mmb);
-        
     }
 
     // Only Write OnConnected
@@ -183,7 +182,7 @@ int mmb_miband_start(MMB_CTX * mmb)
 
     // Rest some miband data
     memset(&mmb->data.sensor,  0, sizeof(struct mmb_sensor_data_s));
-    memset(&mmb->data.battery, 0, sizeof(struct mmb_batteery_data_s));
+    memset(&mmb->data.battery, 0, sizeof(struct mmb_battery_data_s));
 
     mmb->status = MMB_STATUS_CONNECTING;
     printf("[MMB][MIBAND] Connecting.\n");

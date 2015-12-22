@@ -18,6 +18,8 @@ int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color);
 
 int mmb_miband_parsing_raw_data(MMB_CTX * mmb, uint8_t * buf, size_t size);
 
+int mmb_miband_send_battery_read(MMB_CTX * mmb);
+
 /* LED COLOR = 0x(on/off)(B)(G)(R) */
 #define MMB_LED_COLOR_OFF       0x01000000UL
 #define MMB_LED_COLOR_RED       0x01000006UL
