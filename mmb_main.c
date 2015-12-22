@@ -60,6 +60,8 @@ int main(int argc, char *argv[])
     mmb.data.user.type      = 0;
     strcpy((char *)mmb.data.user.alias, "RobinMI");
 
+    printf("%ld\n", sizeof( struct mmb_battery_data_s));
+
     // Got Arg
     while ((opt = getopt_long(argc, argv, optarg_so, optarg_lo, NULL)) != -1)
     {

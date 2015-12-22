@@ -19,6 +19,7 @@
     #define UNUSED_FUNCTION(x) UNUSED_ ## x
 #endif
 
+void dump_hex_bytes(char * title, uint8_t * buf, size_t size);
 size_t bytes_to_hex_str(char * out, uint8_t * in, size_t size);
 size_t hex_str_split_to_bytes(uint8_t * out, size_t max, char * in, const char * split);
 

@@ -24,7 +24,7 @@ struct mmb_battery_data_s {
     uint8_t     dt_second;
     uint16_t    cycle;
     uint8_t     status;
-};
+} __attribute__((packed));
 
 struct mmb_user_data_s {
     uint32_t uid; 
@@ -35,14 +35,14 @@ struct mmb_user_data_s {
     uint8_t  type;
     uint8_t  alias[10];
     uint8_t  code;
-};
+} __attribute__((packed));
 
 struct mmb_sensor_data_s {
     uint16_t seq;
     uint16_t x;
     uint16_t y;
     uint16_t z;
-};
+} __attribute__((packed));
 
 struct mmb_data_s {
     bdaddr_t                    addr;

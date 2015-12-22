@@ -9,6 +9,20 @@
 
 #include "mmb_util.h"
 
+void dump_hex_bytes(char * title, uint8_t * buf, size_t size)
+{
+    size_t i = 0;
+
+    printf("== DUMP [%s] HEX BYTES ==", title);
+    for (i = 0 ; i < size ; i++)
+    {
+        if (i % 16 == 0)
+            printf("\n\t");
+        printf("%02x ", buf[i]);
+    }
+    printf("\n");
+}
+
 size_t bytes_to_hex_str(char * out, uint8_t * in, size_t len)
 {
     size_t i = 0;

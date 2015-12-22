@@ -42,20 +42,21 @@ static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t s
 
     if (size < data_size)
     {
-        printf("[MMB][MIBAND][BATTERY] data size[%ld] less than %lu bytes, ignore.\n", 
+        printf("[MMB][MIBAND][UPDATE][BATTERY] data size[%ld] less than %lu bytes, ignore.\n", 
                 size, data_size);
+        dump_hex_bytes("BATTERY", buf, size);
         return -1;
     }
     
     if (memcmp(old, buf, data_size) == 0)
     {
-        printf("[MMB][MIBAND][BATTERY] data no change, ignore.\n");
+        printf("[MMB][MIBAND][UPDATE][BATTERY] data no change, ignore.\n");
         return -2;
     }
 
     memcpy(old, buf, data_size);
     
-    printf("[MMB][MIBAND][BATTERY][UPDATE]");
+    printf("[MMB][MIBAND][UPDATE][BATTERY]");
     printf(" Level[%d]", old->level);
     printf(" Date[%d-%d-%d]", old->dt_year, old->dt_month, old->dt_day);
     printf(" Time[%d:%d:%d]", old->dt_hour, old->dt_minute, old->dt_second);
@@ -77,6 +78,7 @@ static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t si
     {
         printf("[MMB][MIBAND][SENSOR] data size[%ld] less than %lu bytes, ignore.\n", 
                 size, data_size);
+        dump_hex_bytes("SENSOR", buf, size);
         return -1;
     }
     memcpy(&new, buf, data_size);
