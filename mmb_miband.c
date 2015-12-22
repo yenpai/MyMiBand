@@ -26,6 +26,7 @@ static void do_task_connected(MMB_CTX * mmb)
         goto error_hanlde;
     }
 
+#if 0
     /* Disable all notify */
     ret = mmb_miband_send_sensor_notify(mmb, 0);
     ret = mmb_miband_send_realtime_notify(mmb, 0);
@@ -35,8 +36,73 @@ static void do_task_connected(MMB_CTX * mmb)
     ret = mmb_miband_send_sensor_notify(mmb, 1);
     ret = mmb_miband_send_realtime_notify(mmb, 1);
     ret = mmb_miband_send_battery_notify(mmb, 1);
+#endif
+
+
+    //mmb_miband_send_vibration(mmb, 1);
+    //sleep(5);
 
     do_task_update_timeout(mmb);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, 0x01000007UL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x01000008UL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x01000009UL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x0100000AUL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x0100000BUL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x0100000CUL);
+    usleep(800000);
+    mmb_miband_send_ledcolor(mmb, 0x0100000BUL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x0100000AUL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x01000009UL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x01000008UL);
+    usleep(100000);
+    mmb_miband_send_ledcolor(mmb, 0x01000007UL);
+    usleep(100000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_GREEN);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_BLUE);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_YELLOW);
+    usleep(200000);
+    
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_ORANGE);
+    usleep(200000);
+    
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_WHITE);
+    usleep(200000);
+    
+    mmb_miband_send_ledcolor(mmb, MMB_LED_COLOR_OFF);
+    usleep(200000);
+
     return;
 
 error_hanlde:

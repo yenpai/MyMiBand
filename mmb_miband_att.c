@@ -145,7 +145,7 @@ int mmb_miband_send_auth(MMB_CTX * mmb)
     size  = sizeof(struct mmb_user_data_s);
 
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    mmb->data.user.code = crc8(0x00, ptr, size - 1) ^ (mmb->data.addr.b[5] & 0xFF);
+    mmb->data.user.code = crc8(0x00, ptr, size - 1) ^ (mmb->data.addr.b[0] & 0xFF);
 
     ret = mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_USER, ptr, size);
     if (ret < 0)
@@ -229,49 +229,79 @@ int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode)
     return mmb_miband_write_cmd(mmb->ev_ble->fd, MMB_PF_HND_VIBRATION, buf, 1);
 }
 
-int mmb_miband_send_ledcolor(MMB_CTX * mmb, enum mmb_led_color_e mode)
+int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
 {
-    uint8_t buf[5] = {0,0,0,0,0};
+    uint8_t buf[5] = {14,0,0,0,0};
 
+    buf[1] = 0xFF & color      ; // R
+    buf[2] = 0xFF & color >> 8 ; // G
+    buf[3] = 0xFF & color >> 16; // B
+    buf[4] = 0xFF & color >> 24; // onoff
+
+    printf("%08x\n", color);
+    printf("%02x %02x %02x %02x\n", buf[1], buf[2], buf[3], buf[4]);
+#if 0
     switch (mode)
     {
         case MMB_LED_COLOR_RED:
-            buf[0] = 14;
             buf[1] = 6;
-            buf[2] = 1;
-            buf[3] = 2;
+            buf[2] = 0;
+            buf[3] = 0;
+            buf[4] = 1;
+            break;
+
+        case MMB_LED_COLOR_GREEN:
+            buf[1] = 0;
+            buf[2] = 6;
+            buf[3] = 0;
             buf[4] = 1;
             break;
 
         case MMB_LED_COLOR_BLUE:
             buf[0] = 14;
             buf[1] = 0;
-            buf[2] = 6;
+            buf[2] = 0;
             buf[3] = 6;
+            buf[4] = 1;
+            break;
+
+        case MMB_LED_COLOR_YELLOW:
+            buf[0] = 14;
+            buf[1] = 6;
+            buf[2] = 6;
+            buf[3] = 0;
             buf[4] = 1;
             break;
 
         case MMB_LED_COLOR_ORANGE:
             buf[0] = 14;
             buf[1] = 6;
-            buf[2] = 2;
+            buf[2] = 3;
             buf[3] = 0;
             buf[4] = 1;
             break;
 
-        case MMB_LED_COLOR_GREEN:
+        case MMB_LED_COLOR_WHITE:
             buf[0] = 14;
-            buf[1] = 4;
-            buf[2] = 5;
-            buf[3] = 0;
+            buf[1] = 6;
+            buf[2] = 6;
+            buf[3] = 6;
             buf[4] = 1;
             break;
 
         case MMB_LED_COLOR_OFF:
+            buf[0] = 14;
+            buf[1] = 0;
+            buf[2] = 0;
+            buf[3] = 0;
+            buf[4] = 1;
+            break;
+
         default:
             return -1;
             break;
     }
+#endif
 
     return mmb_miband_write_req(mmb->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
 }

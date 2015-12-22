@@ -9,15 +9,6 @@
 #define MMB_MIBAND_TIMEOUT_SEC      10
 #define MMB_BUFFER_SIZE             512
 
-
-enum mmb_led_color_e {
-    MMB_LED_COLOR_OFF,
-    MMB_LED_COLOR_RED,
-    MMB_LED_COLOR_BLUE,
-    MMB_LED_COLOR_ORANGE,
-    MMB_LED_COLOR_GREEN,
-};
-
 #define MMB_BATTERY_STATUS_LOW          1
 #define MMB_BATTERY_STATUS_CHARGING     2
 #define MMB_BATTERY_STATUS_FULL         3
