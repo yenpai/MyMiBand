@@ -190,8 +190,9 @@ int mmb_miband_start(MMB_CTX * mmb)
     }
 
     // Rest some miband data
-    memset(&mmb->data.sensor,  0, sizeof(struct mmb_sensor_data_s));
-    memset(&mmb->data.battery, 0, sizeof(struct mmb_battery_data_s));
+    memset(&mmb->data.sensor,   0, sizeof(struct mmb_sensor_data_s));
+    memset(&mmb->data.battery,  0, sizeof(struct mmb_battery_data_s));
+    memset(&mmb->data.realtime, 0, sizeof(struct mmb_realtime_data_s));
 
     mmb->status = MMB_STATUS_CONNECTING;
     printf("[MMB][MIBAND] Connecting.\n");

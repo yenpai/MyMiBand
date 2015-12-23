@@ -26,6 +26,17 @@ struct mmb_battery_data_s {
     uint8_t     status;
 } __attribute__((packed));
 
+struct mmb_sensor_data_s {
+    uint16_t seq;
+    uint16_t x;
+    uint16_t y;
+    uint16_t z;
+} __attribute__((packed));
+
+struct mmb_realtime_data_s {
+    uint32_t step;
+} __attribute__((packed));
+
 struct mmb_user_data_s {
     uint32_t uid; 
     uint8_t  gender; 
@@ -37,18 +48,12 @@ struct mmb_user_data_s {
     uint8_t  code;
 } __attribute__((packed));
 
-struct mmb_sensor_data_s {
-    uint16_t seq;
-    uint16_t x;
-    uint16_t y;
-    uint16_t z;
-} __attribute__((packed));
-
 struct mmb_data_s {
     bdaddr_t                    addr;
     struct mmb_user_data_s      user;
     struct mmb_battery_data_s   battery;
     struct mmb_sensor_data_s    sensor;
+    struct mmb_realtime_data_s  realtime;
 };
 
 enum mmb_status_e {

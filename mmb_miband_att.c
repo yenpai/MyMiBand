@@ -35,6 +35,31 @@
 #define MMB_PF_HND_PAIR             0x0034
 #define MMB_PF_HND_VIBRATION        0x0051
 
+static int mmb_miband_update_realtime_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
+{
+    struct mmb_realtime_data_s * old = &mmb->data.realtime;
+    size_t data_size = sizeof(struct mmb_realtime_data_s);
+
+    if (size < data_size)
+    {
+        printf("[MMB][MIBAND][UPDATE][REALTIME] data size[%ld] less than %lu bytes, ignore.\n", 
+                size, data_size);
+        dump_hex_bytes("DATA", buf, size);
+        return -1;
+    }
+
+    if (memcmp(old, buf, data_size) == 0)
+    {
+        printf("[MMB][MIBAND][UPDATE][REALTIME] data no change, ignore.\n");
+        return -2;
+    }
+
+    memcpy(old, buf, data_size);
+    printf("[MMB][MIBAND][UPDATE][REALTIME] Step[%d]\n", old->step);
+
+    return 0;
+}
+
 static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
 {
     struct mmb_battery_data_s * old = &mmb->data.battery;
@@ -44,7 +69,7 @@ static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t s
     {
         printf("[MMB][MIBAND][UPDATE][BATTERY] data size[%ld] less than %lu bytes, ignore.\n", 
                 size, data_size);
-        dump_hex_bytes("BATTERY", buf, size);
+        dump_hex_bytes("DATA", buf, size);
         return -1;
     }
     
@@ -78,7 +103,7 @@ static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t si
     {
         printf("[MMB][MIBAND][SENSOR] data size[%ld] less than %lu bytes, ignore.\n", 
                 size, data_size);
-        dump_hex_bytes("SENSOR", buf, size);
+        dump_hex_bytes("DATA", buf, size);
         return -1;
     }
     memcpy(&new, buf, data_size);
@@ -106,7 +131,7 @@ static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t si
         if (action)
         {
             // Send Notify!
-            printf("[MMB][MIBAND][SENSOR][UPDATE] Diff - X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
+            printf("[MMB][MIBAND][UPDATE][SENSOR] Diff - X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
         }
     }
 
@@ -154,12 +179,11 @@ int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t siz
 {
     MMB_CTX * mmb = pdata;
     int ret = 0;
-    size_t i = 0;
 
     switch (hnd)
     {
         case MMB_PF_HND_REALTIME:
-            printf("[MMB][MIBAND][REALTIME][UPDATE] \n");
+            ret = mmb_miband_update_realtime_data(mmb, val, size);
             break;
 
         case MMB_PF_HND_BATTERY:
@@ -172,9 +196,7 @@ int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t siz
 
         default:
             printf("[MMB][MIBAND][NOTIFICATION] unknow hnd[0x%04x] size[%ld] ", hnd, size);
-            for (i=0;i<size;i++)
-                printf("%02x", val[i]);
-            printf("\n");
+            dump_hex_bytes("DATA", val, size);
             ret = -1;
             break;
     }
