@@ -58,8 +58,8 @@ static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t s
     
     printf("[MMB][MIBAND][UPDATE][BATTERY]");
     printf(" Level[%d]", old->level);
-    printf(" Date[%d-%d-%d]", old->dt_year, old->dt_month, old->dt_day);
-    printf(" Time[%d:%d:%d]", old->dt_hour, old->dt_minute, old->dt_second);
+    printf(" Date[%d-%02d-%02d]", 2000 + old->dt_year, old->dt_month, old->dt_day);
+    printf(" Time[%02d:%02d:%02d]", old->dt_hour, old->dt_minute, old->dt_second);
     printf(" Cycle[%d]", old->cycle);
     printf(" Status[%d]\n", old->status);
     
@@ -106,7 +106,7 @@ static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t si
         if (action)
         {
             // Send Notify!
-            printf("[MMB][MIBAND][SENSOR][UPDATE] X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
+            printf("[MMB][MIBAND][SENSOR][UPDATE] Diff - X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
         }
     }
 
