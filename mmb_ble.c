@@ -27,7 +27,7 @@ static int l2cap_bind(int sock, const bdaddr_t *src, uint8_t src_type, uint16_t 
 
     if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0)
     {
-        printf("l2cap_bind failed! errno[%d]", errno);
+        printf("l2cap_bind failed! errno[%d]\n", errno);
         return -1;
     }
 
@@ -51,10 +51,139 @@ static int l2cap_connect(int sock, const bdaddr_t *dst, uint8_t dst_type, uint16
     {
         if (!(errno == EAGAIN || errno == EINPROGRESS))
         {
-            printf("l2cap_connect failed! errno[%d]", errno);
+            printf("l2cap_connect failed! errno[%d]\n", errno);
             return -1;
         }
     }
+
+    return 0;
+}
+
+int mmb_ble_scan_reader(const int dev)
+{
+    uint8_t buf[HCI_MAX_EVENT_SIZE];
+    int len;
+    evt_le_meta_event * meta_event;
+    le_advertising_info * info;
+    uint8_t reports_count;
+    void * offset;
+    char addr[18];
+
+    len = read(dev, buf, sizeof(buf));
+    if ( len >= HCI_EVENT_HDR_SIZE ) {
+        meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+        if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
+            reports_count = meta_event->data[0];
+            offset = meta_event->data + 1;
+            while ( reports_count-- ) {
+                info = (le_advertising_info *) offset;
+                ba2str(&(info->bdaddr), addr);
+                printf("%s - RSSI %d\n", addr, (uint8_t)info->data[info->length]);
+                offset = info->data + info->length + 2;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int mmb_ble_scan_stop(const int dev, const int timeout)
+{
+    struct hci_request        scan_enable_rq;
+    le_set_scan_enable_cp     scan_enable_cp;
+    
+    int status, ret;
+
+    memset(&scan_enable_cp, 0, sizeof(scan_enable_cp));
+    scan_enable_cp.enable = 0x00; // Disable flag.
+
+    memset(&scan_enable_rq, 0, sizeof(scan_enable_rq));
+    scan_enable_rq.ogf      = OGF_LE_CTL;
+    scan_enable_rq.ocf      = OCF_LE_SET_SCAN_ENABLE; 
+    scan_enable_rq.cparam   = &scan_enable_cp;
+    scan_enable_rq.clen     = LE_SET_SCAN_ENABLE_CP_SIZE;
+    scan_enable_rq.rparam   = &status;
+    scan_enable_rq.rlen     = 1;
+    
+    if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
+        return -1;
+
+    return 0;
+}
+
+int mmb_ble_scan_start(const int dev, const int timeout)
+{
+    struct hci_request        scan_para_rq;
+    le_set_scan_parameters_cp scan_para_cp;
+
+    struct hci_request        event_mask_rq;
+    le_set_event_mask_cp      event_mask_cp;
+
+    struct hci_request        scan_enable_rq;
+    le_set_scan_enable_cp     scan_enable_cp;
+
+    struct hci_filter nf;
+    int status, ret, i;
+
+    //socket_setting_non_blocking(dev);
+
+    // 1. Set BLE scan parameters
+    memset(&scan_para_cp, 0, sizeof(scan_para_cp));
+    scan_para_cp.type             = 0x00;
+    scan_para_cp.interval         = htobs(0x0010);
+    scan_para_cp.window           = htobs(0x0010);
+    scan_para_cp.own_bdaddr_type  = 0x00; // Public Device Address (default).
+    scan_para_cp.filter           = 0x00; // Accept all.
+
+    memset(&scan_para_rq, 0, sizeof(scan_para_rq));
+    scan_para_rq.ogf      = OGF_LE_CTL;
+    scan_para_rq.ocf      = OCF_LE_SET_SCAN_PARAMETERS;
+    scan_para_rq.cparam   = &scan_para_cp;
+    scan_para_rq.clen     = LE_SET_SCAN_PARAMETERS_CP_SIZE;
+    scan_para_rq.rparam   = &status;
+    scan_para_rq.rlen     = 1;
+
+    if ((ret = hci_send_req(dev, &scan_para_rq, timeout)) < 0)
+        return -1;
+
+    // 2. Set BLE events report mask
+    memset(&event_mask_cp, 0, sizeof(event_mask_cp));
+    for(i = 0 ; i < 8 ; i++)
+        event_mask_cp.mask[i] = 0xFF;
+    
+    memset(&event_mask_rq, 0, sizeof(event_mask_rq));
+    event_mask_rq.ogf      = OGF_LE_CTL;
+    event_mask_rq.ocf      = OCF_LE_SET_EVENT_MASK; 
+    event_mask_rq.cparam   = &event_mask_cp;
+    event_mask_rq.clen     = LE_SET_EVENT_MASK_CP_SIZE;
+    event_mask_rq.rparam   = &status;
+    event_mask_rq.rlen     = 1;
+
+    if ((ret = hci_send_req(dev, &event_mask_rq, timeout)) < 0)
+        return -2;
+
+    // 3. Set BLE sacn enable
+    memset(&scan_enable_cp, 0, sizeof(scan_enable_cp));
+    scan_enable_cp.enable      = 0x01; // Enable flag.
+    scan_enable_cp.filter_dup  = 0x00; // Filtering disabled.
+    
+    memset(&scan_enable_rq, 0, sizeof(scan_enable_rq));
+    scan_enable_rq.ogf      = OGF_LE_CTL;
+    scan_enable_rq.ocf      = OCF_LE_SET_SCAN_ENABLE; 
+    scan_enable_rq.cparam   = &scan_enable_cp;
+    scan_enable_rq.clen     = LE_SET_SCAN_ENABLE_CP_SIZE;
+    scan_enable_rq.rparam   = &status;
+    scan_enable_rq.rlen     = 1;
+
+    if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
+        return -3;
+
+    // 4. Set hci filter
+    hci_filter_clear(&nf);
+    hci_filter_set_ptype(HCI_EVENT_PKT, &nf);
+    hci_filter_set_event(EVT_LE_META_EVENT, &nf);
+    if ( setsockopt(dev, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0 )
+        return -4;
 
     return 0;
 }

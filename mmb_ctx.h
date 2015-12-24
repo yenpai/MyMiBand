@@ -2,10 +2,6 @@
 #define MMB_CTX_H_
 
 #include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
-
-#include "mmb_miband.h"
 
 #define MMB_BUFFER_SIZE             512
 
@@ -21,6 +17,8 @@ typedef struct mmb_ctx_s {
     int                         status;
     struct evhr_ctx_s *         evhr;
     struct mmb_miband_ctx_s *   miband;
+    int                         adapter_dev;
+    struct evhr_event_s *       ev_scan_timer;
 } MMB_CTX;
 
 #endif

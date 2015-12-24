@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <getopt.h>  
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
 #include "mmb_ctx.h"
 
 /* mmb_service.c */

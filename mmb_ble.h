@@ -3,6 +3,8 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
 
 #define MMB_BLE_ATT_CID                     0x0004
 #define MMB_BLE_ATT_OPCODE_ERROR            0x01
@@ -33,5 +35,9 @@ struct mmb_ble_att_data_parser_cb_s {
 };
 
 int mmb_ble_att_data_parser(uint8_t *buf, size_t size, struct mmb_ble_att_data_parser_cb_s * cb, void *pdata);
+
+int mmb_ble_scan_start(const int dev, const int timeout);
+int mmb_ble_scan_stop(const int dev, const int timeout);
+int mmb_ble_scan_reader(const int dev);
 
 #endif 
