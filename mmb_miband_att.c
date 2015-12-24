@@ -5,7 +5,7 @@
 #include <errno.h>
 
 #include "evhr.h"
-#include "mmb_ctx.h"
+#include "mmb_miband.h"
 #include "mmb_ble.h"
 #include "mmb_util.h"
 
@@ -35,9 +35,9 @@
 #define MMB_PF_HND_PAIR             0x0034
 #define MMB_PF_HND_VIBRATION        0x0051
 
-static int mmb_miband_update_realtime_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
+static int mmb_miband_update_realtime_data(MMB_MIBAND * this, uint8_t * buf, size_t size)
 {
-    struct mmb_realtime_data_s * old = &mmb->data.realtime;
+    struct mmb_realtime_data_s * old = &this->realtime;
     size_t data_size = sizeof(struct mmb_realtime_data_s);
 
     if (size < data_size)
@@ -60,9 +60,9 @@ static int mmb_miband_update_realtime_data(MMB_CTX * mmb, uint8_t * buf, size_t 
     return 0;
 }
 
-static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
+static int mmb_miband_update_battery_data(MMB_MIBAND * this, uint8_t * buf, size_t size)
 {
-    struct mmb_battery_data_s * old = &mmb->data.battery;
+    struct mmb_battery_data_s * old = &this->battery;
     size_t data_size = sizeof(struct mmb_battery_data_s);
 
     if (size < data_size)
@@ -91,9 +91,9 @@ static int mmb_miband_update_battery_data(MMB_CTX * mmb, uint8_t * buf, size_t s
     return 0;
 }
 
-static int mmb_miband_update_sensor_data(MMB_CTX * mmb, uint8_t * buf, size_t size)
+static int mmb_miband_update_sensor_data(MMB_MIBAND * this, uint8_t * buf, size_t size)
 {
-    struct mmb_sensor_data_s * old = &mmb->data.sensor;
+    struct mmb_sensor_data_s * old = &this->sensor;
     struct mmb_sensor_data_s new; 
     size_t data_size = sizeof(struct mmb_sensor_data_s);
     int diff_x, diff_y, diff_z;
@@ -148,12 +148,12 @@ int mmb_miband_parser_error(void *UNUSED(pdata), uint16_t hnd, uint8_t error_cod
 int mmb_miband_parser_read_type_resp(void *pdata, uint16_t hnd, uint8_t *val, size_t size)
 {
     int ret = 0;
-    MMB_CTX * mmb = pdata;
+    MMB_MIBAND * this = pdata;
 
     switch (hnd)
     {
         case MMB_PF_HND_BATTERY:
-            ret = mmb_miband_update_battery_data(mmb, val, size);
+            ret = mmb_miband_update_battery_data(this, val, size);
             break;
 
         default:
@@ -177,21 +177,21 @@ int mmb_miband_parser_write_resp(void * UNUSED(pdata))
 
 int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t size)
 {
-    MMB_CTX * mmb = pdata;
+    MMB_MIBAND * this = pdata;
     int ret = 0;
 
     switch (hnd)
     {
         case MMB_PF_HND_REALTIME:
-            ret = mmb_miband_update_realtime_data(mmb, val, size);
+            ret = mmb_miband_update_realtime_data(this, val, size);
             break;
 
         case MMB_PF_HND_BATTERY:
-            ret = mmb_miband_update_battery_data(mmb, val, size);
+            ret = mmb_miband_update_battery_data(this, val, size);
             break;
 
         case MMB_PF_HND_SENSOR:
-            ret = mmb_miband_update_sensor_data(mmb, val, size);
+            ret = mmb_miband_update_sensor_data(this, val, size);
             break;
 
         default:
@@ -204,26 +204,26 @@ int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t siz
     return ret;
 }
 
-int mmb_miband_send_auth(MMB_CTX * mmb)
+int mmb_miband_send_auth(MMB_MIBAND * this)
 {
     int ret;
     uint8_t * ptr   = NULL;
     size_t size     = 0;
 
-    ptr   = (uint8_t *) &mmb->data.user;
+    ptr   = (uint8_t *) &this->user;
     size  = sizeof(struct mmb_user_data_s);
 
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
-    mmb->data.user.code = crc8(0x00, ptr, size - 1) ^ (mmb->data.addr.b[0] & 0xFF);
+    this->user.code = crc8(0x00, ptr, size - 1) ^ (this->addr.b[0] & 0xFF);
 
-    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_USER, ptr, size);
+    ret = mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_USER, ptr, size);
     if (ret < 0)
         return ret;
 
     return 0;
 }
 
-int mmb_miband_send_realtime_notify(MMB_CTX * mmb, uint8_t enable)
+int mmb_miband_send_realtime_notify(MMB_MIBAND * this, uint8_t enable)
 {
     int ret = 0;
     uint8_t value[2] = {0x00, 0x00};
@@ -237,14 +237,14 @@ int mmb_miband_send_realtime_notify(MMB_CTX * mmb, uint8_t enable)
     //    return ret;
 
     // Disable Notify
-    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_REALTIME_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_REALTIME_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
     return 0;
 }
 
-int mmb_miband_send_sensor_notify(MMB_CTX * mmb, uint8_t enable)
+int mmb_miband_send_sensor_notify(MMB_MIBAND * this, uint8_t enable)
 {
     int ret = 0;
     uint8_t value[2] = {0x00, 0x00};
@@ -253,19 +253,19 @@ int mmb_miband_send_sensor_notify(MMB_CTX * mmb, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR, value, 2);
+    ret = mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_SENSOR, value, 2);
     if (ret < 0)
         return ret;
 
     // Disable Notify
-    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_SENSOR_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_SENSOR_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
     return 0;
 }
 
-int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable)
+int mmb_miband_send_battery_notify(MMB_MIBAND * this, uint8_t enable)
 {
     int ret = 0;
     uint8_t value[2] = {0x00, 0x00};
@@ -277,14 +277,14 @@ int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable)
     //if (ret < 0)
     //    return ret;
 
-    ret = mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY_NOTIFY, value, 2);
+    ret = mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_BATTERY_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
     return 0;
 }
 
-int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode)
+int mmb_miband_send_vibration(MMB_MIBAND * this, uint8_t mode)
 {
     /*
      * VIBRATION_STOP
@@ -295,10 +295,10 @@ int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode)
 
     uint8_t buf[1];
     buf[0] = mode;
-    return mmb_ble_write_cmd(mmb->ev_ble->fd, MMB_PF_HND_VIBRATION, buf, 1);
+    return mmb_ble_write_cmd(this->ev_ble->fd, MMB_PF_HND_VIBRATION, buf, 1);
 }
 
-int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
+int mmb_miband_send_ledcolor(MMB_MIBAND * this, uint32_t color)
 {
     uint8_t buf[5] = {14,0,0,0,0};
 
@@ -307,10 +307,11 @@ int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color)
     buf[3] = 0xFF & color >> 16; // B
     buf[4] = 0xFF & color >> 24; // onoff
 
-    return mmb_ble_write_req(mmb->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
+    return mmb_ble_write_req(this->ev_ble->fd, MMB_PF_HND_CONTROL, buf, 5);
 }
 
-int mmb_miband_send_battery_read(MMB_CTX * mmb)
+int mmb_miband_send_battery_read(MMB_MIBAND * this)
 {
-    return mmb_ble_read_type_req(mmb->ev_ble->fd, MMB_PF_HND_BATTERY, MMB_PF_UUID_BATTERY);
+    return mmb_ble_read_type_req(this->ev_ble->fd, MMB_PF_HND_BATTERY, MMB_PF_UUID_BATTERY);
 }
+

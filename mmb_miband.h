@@ -1,22 +1,84 @@
 #ifndef MMB_MIBAND_H_
 #define MMB_MIBAND_H_
 
-#include "mmb_ctx.h"
+#include <stdint.h>
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
+#define MMB_MIBAND_TIMEOUT_SEC              10
+
+#define MMB_BATTERY_STATUS_LOW              1
+#define MMB_BATTERY_STATUS_CHARGING         2
+#define MMB_BATTERY_STATUS_FULL             3
+#define MMB_BATTERY_STATUS_NOT_CHARGING     4
+
+struct mmb_battery_data_s {
+    uint8_t     level;
+    uint8_t     dt_year;
+    uint8_t     dt_month;
+    uint8_t     dt_day;
+    uint8_t     dt_hour;
+    uint8_t     dt_minute;
+    uint8_t     dt_second;
+    uint16_t    cycle;
+    uint8_t     status;
+} __attribute__((packed));
+
+struct mmb_sensor_data_s {
+    uint16_t seq;
+    uint16_t x;
+    uint16_t y;
+    uint16_t z;
+} __attribute__((packed));
+
+struct mmb_realtime_data_s {
+    uint32_t step;
+} __attribute__((packed));
+
+struct mmb_user_data_s {
+    uint32_t uid; 
+    uint8_t  gender; 
+    uint8_t  age; 
+    uint8_t  height;
+    uint8_t  weight;
+    uint8_t  type;
+    uint8_t  alias[10];
+    uint8_t  code;
+} __attribute__((packed));
+
+typedef struct mmb_miband_ctx_s {
+    
+    bdaddr_t                    addr;
+    int                         status;
+    struct mmb_user_data_s      user;
+
+    struct evhr_ctx_s *         evhr;
+    struct evhr_event_s *       ev_ble;
+    struct evhr_event_s *       ev_timeout;
+    struct evhr_event_s *       ev_led_timer;
+
+    struct mmb_battery_data_s   battery;
+    struct mmb_sensor_data_s    sensor;
+    struct mmb_realtime_data_s  realtime;
+
+} MMB_MIBAND;
 
 /* mmb_miband.c */
-int mmb_miband_start(MMB_CTX * mmb);
-int mmb_miband_stop(MMB_CTX * mmb);
+int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr);
+int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src);
+int mmb_miband_stop(MMB_MIBAND * this);
 
 /* mmb_miband_att.c */
-int mmb_miband_send_auth(MMB_CTX * mmb);
-int mmb_miband_send_realtime_notify(MMB_CTX * mmb, uint8_t enable);
-int mmb_miband_send_sensor_notify(MMB_CTX * mmb, uint8_t enable);
-int mmb_miband_send_battery_notify(MMB_CTX * mmb, uint8_t enable);
+int mmb_miband_send_auth(MMB_MIBAND * this);
+int mmb_miband_send_realtime_notify(MMB_MIBAND * this, uint8_t enable);
+int mmb_miband_send_sensor_notify(MMB_MIBAND * this, uint8_t enable);
+int mmb_miband_send_battery_notify(MMB_MIBAND * this, uint8_t enable);
 
-int mmb_miband_send_vibration(MMB_CTX * mmb, uint8_t mode);
-int mmb_miband_send_ledcolor(MMB_CTX * mmb, uint32_t color);
+int mmb_miband_send_vibration(MMB_MIBAND * this, uint8_t mode);
+int mmb_miband_send_ledcolor(MMB_MIBAND * this, uint32_t color);
 
-int mmb_miband_send_battery_read(MMB_CTX * mmb);
+int mmb_miband_send_battery_read(MMB_MIBAND * mmb);
 
 /* LED COLOR = 0x(on/off)(B)(G)(R) */
 #define MMB_LED_COLOR_OFF       0x01000000UL

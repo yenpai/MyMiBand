@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <getopt.h>  
 
-#include "mmb_ctx.h"
 #include "evhr.h"
+#include "mmb_ctx.h"
 
 /* mmb_service.c */
 extern int mmb_service_init(MMB_CTX *);
@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
     int ret, opt;
     MMB_CTX mmb;
 
+    // Init Service
     if ((ret = mmb_service_init(&mmb)) < 0)
     {
         printf("mmb_service_init failed! ret[%d]", ret);
@@ -41,13 +42,15 @@ int main(int argc, char *argv[])
                     str2ba(optarg, &mmb.addr);
                 break;
             case 'b':
-                str2ba(optarg, &mmb.data.addr);
+                // TODO: Need implement config struct for miband
+                str2ba(optarg, &mmb.miband->addr);
                 break;
             case 'h':
                 printf("Usage:\n\n");
                 exit(0);
         }
     }
+
 
     // Start Service
     if ((ret = mmb_service_start(&mmb)) < 0)
