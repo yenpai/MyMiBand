@@ -3,12 +3,12 @@
 #include <stdlib.h>
 #include <getopt.h>  
 
-#include "evhr.h"
 #include "mmb_ctx.h"
 
 /* mmb_service.c */
-extern int mmb_service_init(MMB_CTX *);
-extern int mmb_service_start(MMB_CTX * mmb);
+extern int mmb_service_init(MMB_CTX * this, bdaddr_t * ble_adapter_addr);
+extern int mmb_service_init_miband(MMB_CTX * this, bdaddr_t * dest);
+extern int mmb_service_start(MMB_CTX * this);
 
 static char *        optarg_so = "i:b:h";
 static struct option optarg_lo[] = {
@@ -22,13 +22,12 @@ int main(int argc, char *argv[])
 {
     int ret, opt;
     MMB_CTX mmb;
+    bdaddr_t adapter_addr;
+    bdaddr_t miband_addr;
 
-    // Init Service
-    if ((ret = mmb_service_init(&mmb)) < 0)
-    {
-        printf("mmb_service_init failed! ret[%d]", ret);
-        return -1;
-    }
+    // Default mac addr
+    bacpy(&adapter_addr, BDADDR_ANY);
+    str2ba("88:0F:10:2A:5F:08", &miband_addr);
 
     // Got Arg
     while ((opt = getopt_long(argc, argv, optarg_so, optarg_lo, NULL)) != -1)
@@ -37,13 +36,12 @@ int main(int argc, char *argv[])
         {
             case 'i':
                 if (!strncasecmp(optarg, "hci", 3))
-                    hci_devba(atoi(optarg + 3), &mmb.addr);
+                    hci_devba(atoi(optarg + 3), &adapter_addr);
                 else
-                    str2ba(optarg, &mmb.addr);
+                    str2ba(optarg, &adapter_addr);
                 break;
             case 'b':
-                // TODO: Need implement config struct for miband
-                str2ba(optarg, &mmb.miband->addr);
+                str2ba(optarg, &miband_addr);
                 break;
             case 'h':
                 printf("Usage:\n\n");
@@ -51,6 +49,20 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Init Service
+    if ((ret = mmb_service_init(&mmb, &adapter_addr)) < 0)
+    {
+        printf("mmb_service_init failed! ret[%d]", ret);
+        return -1;
+    }
+
+    // Init MIBAND
+    // TODO: Need implement mutile devices support
+    if ((ret = mmb_service_init_miband(&mmb, &miband_addr)) < 0)
+    {
+        printf("mmb_service_init_miband failed! ret[%d]", ret);
+        return -1;
+    }
 
     // Start Service
     if ((ret = mmb_service_start(&mmb)) < 0)

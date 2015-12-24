@@ -261,6 +261,9 @@ int mmb_miband_stop(MMB_MIBAND * this)
     this->status = MMB_STATUS_STOPPED;
     printf("[MMB][MIBAND] Stopped.\n");
 
+    // TODO: Hard Code to stop here, need to implement callback
+    evhr_stop(this->evhr);
+
     return 0;
 }
 
