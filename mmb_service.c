@@ -13,14 +13,22 @@ static void scan_timer_cb(EVHR_EVENT * ev)
     MMB_CTX * this = ev->pdata;
     //uint8_t buf[MMB_BUFFER_SIZE];
 
-    printf("scan1\n");
+    // Read Scan Result
     if ((ret = mmb_ble_scan_reader(this->adapter_dev)) < 0)
     {
         printf("scan error, ret = %d\n", ret);
         return;
     }
-    printf("scan2\n");
-    evhr_event_set_timer(ev->fd, 5, 0, 1);
+    
+    // Start MIBAND
+    if (mmb_miband_start(this->miband, &this->addr) < 0)
+    {
+        // failed, restart scaner
+        printf("[MMB][SERVICE][ERR] mmb_miband_start failed!\n");
+        evhr_event_set_timer(ev->fd, 5, 0, 1);
+        return;
+    }
+
 }
 
 static int mmb_service_scan_stop(MMB_CTX * this)
@@ -137,11 +145,6 @@ int mmb_service_start(MMB_CTX * this)
             goto free_next_loop;
         }
 
-        if (mmb_miband_start(this->miband, &this->addr) < 0)
-        {
-            printf("[MMB][SERVICE][ERR] mmb_miband_start failed!\n");
-            goto free_next_loop;
-        }
 
         printf("[MMB][SERVICE] running.\n");
         evhr_dispatch(this->evhr);
