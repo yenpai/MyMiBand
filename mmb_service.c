@@ -13,14 +13,14 @@ static void scan_timer_cb(EVHR_EVENT * ev)
     MMB_CTX * this = ev->pdata;
     //uint8_t buf[MMB_BUFFER_SIZE];
 
+    printf("scan1\n");
     if ((ret = mmb_ble_scan_reader(this->adapter_dev)) < 0)
     {
         printf("scan error, ret = %d\n", ret);
         return;
     }
-
-    close(ev->fd);
-    evhr_event_del(ev);
+    printf("scan2\n");
+    evhr_event_set_timer(ev->fd, 5, 0, 1);
 }
 
 static int mmb_service_scan_stop(MMB_CTX * this)
@@ -63,18 +63,20 @@ static int mmb_service_scan_start(MMB_CTX * this)
     }
 
     // scan start
-    ret = mmb_ble_scan_start(this->adapter_dev, 1000);
+    ret = mmb_ble_scan_start(this->adapter_dev, 5000);
     if (ret < 0) {
         printf("scan_start failed! ret = %d\n", ret);
         mmb_service_scan_stop(this);
         return -2;
     }
     
+    printf("[MMB][SCAN] start.\n");
+    
     timerfd = evhr_event_create_timer();
 
     // Add event handler
     this->ev_scan_timer = evhr_event_add_timer_once(
-            this->evhr, timerfd, 1, 0, 
+            this->evhr, timerfd, 0, 10, 
             this, scan_timer_cb);
     if (this->ev_scan_timer == NULL) {
         printf("add event failed! ret = %d\n", ret);
@@ -82,9 +84,6 @@ static int mmb_service_scan_start(MMB_CTX * this)
         return -3;
     }
 
-    printf("[MMB][SCAN] start.\n");
-
-    ret = mmb_ble_scan_reader(this->adapter_dev);
     return 0;
 }
 

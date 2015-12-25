@@ -125,8 +125,6 @@ int mmb_ble_scan_start(const int dev, const int timeout)
     struct hci_filter nf;
     int status, ret, i;
 
-    //socket_setting_non_blocking(dev);
-
     // 1. Set BLE scan parameters
     memset(&scan_para_cp, 0, sizeof(scan_para_cp));
     scan_para_cp.type             = 0x00;
