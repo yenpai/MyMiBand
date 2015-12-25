@@ -13,12 +13,10 @@ enum mmb_status_e {
 };
 
 typedef struct mmb_ctx_s {
-    bdaddr_t                    addr;
     int                         status;
     struct evhr_ctx_s *         evhr;
+    struct mmb_adapter_s *      adapter;
     struct mmb_miband_ctx_s *   miband;
-    int                         adapter_dev;
-    struct evhr_event_s *       ev_scan_timer;
 } MMB_CTX;
 
 #endif

@@ -59,7 +59,7 @@ static int l2cap_connect(int sock, const bdaddr_t *dst, uint8_t dst_type, uint16
     return 0;
 }
 
-int mmb_ble_scan_reader(const int dev)
+int mmb_ble_scan_reader(const int dd)
 {
     uint8_t buf[HCI_MAX_EVENT_SIZE];
     int len;
@@ -69,26 +69,36 @@ int mmb_ble_scan_reader(const int dev)
     void * offset;
     char addr[18];
 
-    len = read(dev, buf, sizeof(buf));
-    if ( len >= HCI_EVENT_HDR_SIZE ) {
-        meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
-        if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
-            reports_count = meta_event->data[0];
-            offset = meta_event->data + 1;
-            while ( reports_count-- ) {
-                info = (le_advertising_info *) offset;
-                ba2str(&(info->bdaddr), addr);
-                printf("%s - RSSI %d\n", addr, (uint8_t)info->data[info->length]);
-                offset = info->data + info->length + 2;
-            }
+    int ret = 0;
+
+    len = read(dd, buf, sizeof(buf));
+    if (len < HCI_EVENT_HDR_SIZE)
+        return 0;
+
+    meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+
+    if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
+        
+        reports_count = meta_event->data[0];
+        offset = meta_event->data + 1;
+        ret = reports_count;
+
+        while ( reports_count-- ) {
+            info = (le_advertising_info *) offset;
+            ba2str(&(info->bdaddr), addr);
+            printf("%s - RSSI %d\n", addr, (uint8_t)info->data[info->length]);
+            offset = info->data + info->length + 2;
         }
+
+        return ret;
     }
 
     return 0;
 }
 
-int mmb_ble_scan_stop(const int dev, const int timeout)
+int mmb_ble_scan_stop(const int dd)
 {
+#if 0
     struct hci_request        scan_enable_rq;
     le_set_scan_enable_cp     scan_enable_cp;
     
@@ -107,12 +117,23 @@ int mmb_ble_scan_stop(const int dev, const int timeout)
     
     if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
         return -1;
+#endif
+
+    int ret;
+	uint8_t filter_dup = 0x00;
+
+	ret = hci_le_set_scan_enable(dd, 0x00, filter_dup, 10000);
+	if (ret < 0) {
+		perror("Disable scan failed");
+        return -1;
+	}
 
     return 0;
 }
 
-int mmb_ble_scan_start(const int dev, const int timeout)
+int mmb_ble_scan_start(const int dd)
 {
+#if 0
     struct hci_request        scan_para_rq;
     le_set_scan_parameters_cp scan_para_cp;
 
@@ -175,12 +196,36 @@ int mmb_ble_scan_start(const int dev, const int timeout)
 
     if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
         return -3;
+#endif
+
+    struct hci_filter nf;
+
+	int ret;
+	uint8_t own_type = LE_PUBLIC_ADDRESS;
+	uint8_t scan_type = 0x01;
+	uint8_t filter_policy = 0x00;
+	uint16_t interval = htobs(0x0010);
+	uint16_t window = htobs(0x0010);
+	uint8_t filter_dup = 0x00;
+
+	ret = hci_le_set_scan_parameters(dd, scan_type, interval, window,
+						own_type, filter_policy, 10000);
+	if (ret < 0) {
+		perror("Set scan parameters failed");
+        return -2;
+	}
+
+	ret = hci_le_set_scan_enable(dd, 0x01, filter_dup, 10000);
+	if (ret < 0) {
+		perror("Enable scan failed");
+        return -3;
+	}
 
     // 4. Set hci filter
     hci_filter_clear(&nf);
     hci_filter_set_ptype(HCI_EVENT_PKT, &nf);
     hci_filter_set_event(EVT_LE_META_EVENT, &nf);
-    if ( setsockopt(dev, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0 )
+    if ( setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0 )
         return -4;
 
     return 0;

@@ -36,8 +36,8 @@ struct mmb_ble_att_data_parser_cb_s {
 
 int mmb_ble_att_data_parser(uint8_t *buf, size_t size, struct mmb_ble_att_data_parser_cb_s * cb, void *pdata);
 
-int mmb_ble_scan_start(const int dev, const int timeout);
-int mmb_ble_scan_stop(const int dev, const int timeout);
-int mmb_ble_scan_reader(const int dev);
+int mmb_ble_scan_start(const int dd);
+int mmb_ble_scan_stop(const int dd);
+int mmb_ble_scan_reader(const int dd);
 
 #endif 

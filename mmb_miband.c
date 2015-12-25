@@ -18,8 +18,7 @@ static void mmb_miband_reset_data(MMB_MIBAND * this)
 static void mmb_miband_update_timeout(MMB_MIBAND * this)
 {
     evhr_event_set_timer(
-            this->ev_timeout->fd, 
-            MMB_MIBAND_TIMEOUT_SEC, 10, 0);
+            this->ev_timeout, MMB_MIBAND_TIMEOUT_SEC, 10, 0);
 }
 
 static void led_timer_cb(EVHR_EVENT * ev)
@@ -30,13 +29,12 @@ static void led_timer_cb(EVHR_EVENT * ev)
     mmb_miband_send_ledcolor(this, MMB_LED_COLOR_BLUE);
 
     // Bind next timer
-    evhr_event_set_timer(ev->fd, 5, 0, 1);
+    evhr_event_set_timer(ev, 5, 0, 1);
 }
 
 static void do_task_connected(MMB_MIBAND * this)
 {
     int ret;
-    int timerfd;
 
     printf("[MMB][MIBAND][TASK] Connected Task Start.\n");
 
@@ -65,19 +63,10 @@ static void do_task_connected(MMB_MIBAND * this)
     ret = mmb_miband_send_battery_read(this);
 
     /* Create LED timer */
-    if ((timerfd = evhr_event_create_timer()) < 0)
+    if ((this->ev_led_timer = evhr_event_add_timer_once(
+                    this->evhr, 1, 0, this, led_timer_cb)) == NULL)
     {
-        printf("[MMB][MIBAND][TASK] ERR: Create LED Timer failed!\n");
-    }
-    else
-    {
-        // Add timer into event handler
-        if ((this->ev_led_timer = evhr_event_add_timer_once(
-                        this->evhr, timerfd,
-                        1, 0, this, led_timer_cb)) == NULL)
-        {
-            printf("[MMB][MIBAND][TASK] ERR: Bind LED Timer event failed!\n");
-        }
+        printf("[MMB][MIBAND][TASK] ERR: Bind LED Timer event failed!\n");
     }
 
     printf("[MMB][MIBAND][TASK] Connected Task Finish.\n");
@@ -181,7 +170,6 @@ int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr
 int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
 {
     int sock = -1;
-    int timerfd = -1;
 
     printf("[MMB][MIBAND] Start.\n");
 
@@ -202,18 +190,9 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
         return -2;
     }
 
-    // Create timeout
-    if ((timerfd = evhr_event_create_timer()) < 0)
-    {
-        printf("[MMB][MIBAND][ERROR] Create Timer failed!\n");
-        mmb_miband_stop(this);
-        return -3;
-    }
-
     // Add timer into event handler
     if ((this->ev_timeout = evhr_event_add_timer_periodic(
-            this->evhr, timerfd,
-            MMB_MIBAND_TIMEOUT_SEC, 10, 
+            this->evhr, MMB_MIBAND_TIMEOUT_SEC, 10, 
             this, ble_timeout_cb)) == NULL)
     {
         printf("[MMB][MIBAND][ERROR] Bind Timer event failed!\n");
@@ -241,19 +220,11 @@ int mmb_miband_stop(MMB_MIBAND * this)
     }
 
     if (this->ev_timeout) {
-        if (this->ev_timeout->fd > 0) {
-            evhr_event_stop_timer(this->ev_timeout->fd);
-            close(this->ev_timeout->fd);
-        }
         evhr_event_del(this->ev_timeout);
         this->ev_timeout = NULL;
     }
     
     if (this->ev_led_timer) {
-        if (this->ev_led_timer->fd > 0) {
-            evhr_event_stop_timer(this->ev_led_timer->fd);
-            close(this->ev_led_timer->fd);
-        }
         evhr_event_del(this->ev_led_timer);
         this->ev_led_timer = NULL;
     }
