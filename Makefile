@@ -12,12 +12,12 @@ TARGET_LDFLAGS := $(EXTRA_LDFLAGS) -lpthread
 
 OBJS    = $(addsuffix .o, $(notdir $(basename $(wildcard *.c))))
 
-EVHR_SOURCE    ?= ../MyEventHandler
-TARGET_CFLAGS  += -I$(EVHR_SOURCE)
-TARGET_LDFLAGS += -L$(EVHR_SOURCE) -levhr
+LIBRC_SOURCE   ?= ../LibRC
+TARGET_CFLAGS  += -I$(LIBRC_SOURCE)/evhr
+TARGET_LDFLAGS += -L$(LIBRC_SOURCE)/evhr -levhr
+TARGET_CFLAGS  += -I$(LIBRC_SOURCE)/qlist
+TARGET_LDFLAGS += -L$(LIBRC_SOURCE)/qlist -lqlist
 
-#BLUEZ_SOURCE   ?= ../bluez-5.35
-#TARGET_CFLAGS  += -I$(BLUEZ_SOURCE)
 TARGET_LDFLAGS += -lbluetooth
 
 .PHONY: all clean

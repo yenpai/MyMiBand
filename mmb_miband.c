@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -129,6 +130,17 @@ static void ble_timeout_cb(EVHR_EVENT * ev)
 {
     printf("[MMB][MIBAND] BLE timeout!\n");
     mmb_miband_stop((MMB_MIBAND *)ev->pdata);
+}
+
+int mmb_miband_probe(struct mmb_adapter_scan_result_s * result)
+{
+    if (strncmp(result->name, "MI", 2) != 0)
+        return -1;
+
+    printf( "[MMB][MIBAND][PROBE] \t\t==> "
+            "MiBand Device: Name[%s].\n", result->name);
+
+    return 0;
 }
 
 int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr)

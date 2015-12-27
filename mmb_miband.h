@@ -6,6 +6,8 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include "mmb_adapter.h"
+
 #define MMB_MIBAND_TIMEOUT_SEC              30
 
 #define MMB_BATTERY_STATUS_LOW              1
@@ -68,6 +70,7 @@ typedef struct mmb_miband_ctx_s {
 } MMB_MIBAND;
 
 /* mmb_miband.c */
+int mmb_miband_probe(struct mmb_adapter_scan_result_s * result);
 int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr);
 int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src);
 int mmb_miband_stop(MMB_MIBAND * this);

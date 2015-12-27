@@ -2,6 +2,8 @@
 #include <unistd.h>
 
 #include "evhr.h"
+#include "qlist.h"
+
 #include "mmb_ctx.h"
 #include "mmb_adapter.h"
 #include "mmb_miband.h"
@@ -10,56 +12,70 @@ static void adapter_scan_cb(void *pdata, struct mmb_adapter_scan_result_s * resu
 {
     int ret;
     MMB_CTX * this = pdata;
-    struct mmb_adapter_scan_result_s * p = results;
-    struct mmb_device_list_s * device = NULL;
+    
+    struct mmb_adapter_scan_result_s * result = NULL;
     char addr[18];
+
+    MMB_DEVICE * device = NULL;
+    void * device_ctx   = NULL;
 
     if (size <= 0)
         return;
 
     printf("[MMB][SCAN][CB] Find BLE Device: counts = %d\n", size);
 
-    while (p) {
+    for (result = results; result; result = result->next)
+    {
 
-        ba2str(&p->addr, addr);
-        printf("[MMB][SCAN][CB] ==> Name[%s], Addr[%s], Rssi[%d]\n", results->name, addr, results->rssi);
+        ba2str(&result->addr, addr);
+        printf("[MMB][SCAN][CB] \t==> Name[%s], Addr[%s], Rssi[%d]\n", result->name, addr, result->rssi);
 
-        if (strncmp(results->name, "MI", 2) == 0)
+        if (mmb_miband_probe(result) == 0)
         {
 
-            device = malloc(sizeof(struct mmb_device_list_s));
-
-            strncpy(device->name, results->name, sizeof(device->name));
-            bacpy(&device->addr, &results->addr);
-            device->device_ctx = (void *) malloc(sizeof(struct mmb_miband_ctx_s));
-            device->next = this->devices;
-
-            // Init MIBAND
-            printf("[MMB][SCAN][CB] Inital MIBAND: Name[%s], Addr[%s].\n", results->name, addr);
-            if ((ret = mmb_miband_init(device->device_ctx, &results->addr, this->evhr)) < 0)
+            // Create DeviceCtx (MiBand)
+            if ((device_ctx = (void *) malloc(sizeof(struct mmb_miband_ctx_s))) == NULL)
             {
-                printf("[MMB][SCAN][CB] ERR: mmb_miband_init failed! ret[%d]", ret);
-                free(device->device_ctx);
-                free(device);
-                return;
+                printf("[MMB][SCAN][CB] \t\t==> ERR: malloc failed!\n");
+                continue;
+            }
+            
+            // Init MIBAND
+            if ((ret = mmb_miband_init(device_ctx, &result->addr, this->evhr)) < 0)
+            {
+                printf("[MMB][SCAN][CB] \t\t==> ERR: mmb_miband_init failed! ret[%d]", ret);
+                free(device_ctx);
+                continue;
+            }
+            
+            // Create Device
+            if ((device = malloc(sizeof(MMB_DEVICE))) == NULL)
+            {
+                printf("[MMB][SCAN][CB] \t\t==> ERR: malloc failed!\n");
+                free(device_ctx);
+                continue;
             }
 
-            // Start MIBAND
-            printf("[MMB][SCAN][CB] Start MIBAND: Name[%s], Addr[%s].\n", results->name, addr);
+            // Init Device
+            strncpy(device->name, result->name, sizeof(device->name));
+            bacpy(&device->addr, &result->addr);
+            device->device_ctx = device_ctx;
+
+            // Start DeviceCtx (MiBand)
+            printf("[MMB][SCAN][CB] \t\t==> Start MIBAND.\n");
             if ((ret = mmb_miband_start(device->device_ctx, &this->adapter->addr)) < 0)
             {
-                printf("[MMB][SCAN][CB] ERR: mmb_miband_start failed! ret = %d.\n", ret);
-                free(device->device_ctx);
+                printf("[MMB][SCAN][CB] \t\t==> ERR: mmb_miband_start failed! ret = %d.\n", ret);
+                free(device_ctx);
                 free(device);
-                return;
+                continue;
             }
 
-            this->devices = device;
-
-            return;
+            // Push device into list
+            qlist_push(this->devices, device);
+            continue;
         }
 
-        p = p->next;
     }
 
 }
@@ -70,8 +86,6 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
 
     // Default config
     memset(this, 0, sizeof(MMB_CTX));
-    this->adapter = (MMB_ADAPTER *) malloc(sizeof(MMB_ADAPTER)); 
-    this->devices = NULL;
 
     // Inital EVHR
     if ((ret = evhr_create(&this->evhr)) != EVHR_RTN_SUCCESS)
@@ -80,11 +94,23 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
         return -1;
     }
 
-    // Inital Adapter
-    if ((ret = mmb_adapter_init(this->adapter, addr)) < 0)
+    // Initial Devices
+    if ((ret = qlist_create(&this->devices)) < 0)
     {
-        printf("[MMB][SERVICE] ERR: evhr_create failed! ret = %d\n", ret);
+        printf("[MMB][SERVICE] ERR: qlist_create failed! ret = %d\n", ret);
         return -2;
+    }
+
+    // Inital Adapter
+    if ((this->adapter = malloc(sizeof(MMB_ADAPTER))) == NULL)
+    {
+        printf("[MMB][SERVICE] ERR: malloc failed! ret = %d\n", ret);
+        return -3;
+    }
+    else if ((ret = mmb_adapter_init(this->adapter, addr)) < 0)
+    {
+        printf("[MMB][SERVICE] ERR: mmb_adapter_init failed! ret = %d\n", ret);
+        return -4;
     }
 
     printf("[MMB][SERVICE] initial.\n");
@@ -95,7 +121,8 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
 int mmb_service_start(MMB_CTX * this)
 {
     int ret;
-    struct mmb_device_list_s * device = NULL, * next_device = NULL;
+    
+    MMB_DEVICE * device;
 
     printf("[MMB][SERVICE] start.\n");
 
@@ -123,17 +150,16 @@ free_next_loop:
         mmb_adapter_scan_stop(this->adapter);
         mmb_adapter_disconnect(this->adapter);
 
-        device = this->devices;
-        while (device)
+        while (this->devices->counts > 0)
         {
-            mmb_miband_stop(device->device_ctx);
-            free(device->device_ctx);
-            next_device = device->next;
-            free(device);
-            device = next_device;
+            if ((device = qlist_shift(this->devices)) != NULL)
+            {
+                mmb_miband_stop(device->device_ctx);
+                free(device->device_ctx);
+                free(device);
+            }
         }
 
-        this->devices = NULL;
     }
 
     return 0;
