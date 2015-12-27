@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <assert.h>
 
 #include "evhr.h"
 #include "mmb_util.h"
@@ -160,6 +159,14 @@ int mmb_adapter_disconnect(MMB_ADAPTER * this)
         hci_close_dev(this->dev);
         this->dev = 0;
     }
+
+    int dev_id;
+    char cmd[64];
+
+    dev_id = hci_get_route(&this->addr);
+    sprintf(cmd, "hciconfig hci%d down && hciconfig hci%d up", dev_id, dev_id);
+    
+    system(cmd);
 
     return 0;
 }

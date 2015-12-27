@@ -75,9 +75,6 @@ static void led_timer_cb(EVHR_EVENT * ev)
 
         // sleep mode
         case 2:
-            send  = 1;
-            color = MMB_LED_COLOR_BLUE;
-            next_sec = 60;
             break;
 
         // notify-trigger
@@ -101,13 +98,13 @@ static void led_timer_cb(EVHR_EVENT * ev)
             else
                 color = led_rand_color();
 
-            if (this->led_index < 10)
+            if (this->led_index < 5)
             {
                 send = 0;
                 next_sec = 0;
-                next_msec = 100;
+                next_msec = 200;
             }
-            else if (this->led_index < 20)
+            else if (this->led_index < 10)
             {
                 next_sec = 1;
                 next_msec = 0;
@@ -115,15 +112,20 @@ static void led_timer_cb(EVHR_EVENT * ev)
             else
             {
                 next_sec = 0;
-                next_msec = 250;
+                next_msec = 150;
+                if (color == MMB_LED_COLOR_OFF)
+                    next_msec += 250;
+
             }
 
             this->led_index--;
             
-            if (this->led_index > 50)
-                this->led_index = 50;
-            if (this->led_index == 19)
-                this->led_index = 13;
+            if (this->led_index > 20)
+                this->led_index = 20;
+            else if (this->led_index == 10)
+                this->led_index = 6;
+            else if (this->led_index == 5)
+                this->led_index = 2;
 
             break;
     }
