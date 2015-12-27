@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -59,17 +60,79 @@ static int l2cap_connect(int sock, const bdaddr_t *dst, uint8_t dst_type, uint16
     return 0;
 }
 
-int mmb_ble_scan_reader(const int dd)
+#define EIR_FLAGS                   0x01  /* flags */
+#define EIR_UUID16_SOME             0x02  /* 16-bit UUID, more available */
+#define EIR_UUID16_ALL              0x03  /* 16-bit UUID, all listed */
+#define EIR_UUID32_SOME             0x04  /* 32-bit UUID, more available */
+#define EIR_UUID32_ALL              0x05  /* 32-bit UUID, all listed */
+#define EIR_UUID128_SOME            0x06  /* 128-bit UUID, more available */
+#define EIR_UUID128_ALL             0x07  /* 128-bit UUID, all listed */
+#define EIR_NAME_SHORT              0x08  /* shortened local name */
+#define EIR_NAME_COMPLETE           0x09  /* complete local name */
+#define EIR_TX_POWER                0x0A  /* transmit power level */
+#define EIR_DEVICE_ID               0x10  /* device ID */
+
+static void eir_parse_name(uint8_t *eir, size_t eir_len, char *buf, size_t buf_len)
+{
+	size_t offset = 0;
+
+	while (offset < eir_len) {
+
+		uint8_t field_len = eir[0];
+		size_t name_len;
+
+		/* Check for the end of EIR */
+		if (field_len == 0)
+			break;
+
+		if (offset + field_len > eir_len)
+			break;
+
+		switch (eir[1]) {
+		case EIR_NAME_SHORT:
+		case EIR_NAME_COMPLETE:
+			name_len = field_len - 1;
+			if (name_len >= buf_len)
+            {
+                memcpy(buf, &eir[2], buf_len - 1);
+                buf[buf_len] = '\0';
+                return;
+            }
+
+			memcpy(buf, &eir[2], name_len);
+            buf[name_len] = '\0';
+			return;
+		}
+
+		offset += field_len + 1;
+		eir += field_len + 1;
+	}
+    
+    buf[0] = '\0';
+}
+
+void mmb_ble_scan_results_free(struct mmb_adapter_scan_result_s * node)
+{
+    struct mmb_adapter_scan_result_s * next = NULL;
+
+    while (node)
+    {
+        next = node->next;
+        free(node);
+        node = next;
+    }
+}
+
+int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** results)
 {
     uint8_t buf[HCI_MAX_EVENT_SIZE];
     int len;
     evt_le_meta_event * meta_event;
     le_advertising_info * info;
-    uint8_t reports_count;
+    uint8_t count;
     void * offset;
-    char addr[18];
 
-    int ret = 0;
+    struct mmb_adapter_scan_result_s * res = NULL;
 
     len = read(dd, buf, sizeof(buf));
     if (len < HCI_EVENT_HDR_SIZE)
@@ -77,23 +140,36 @@ int mmb_ble_scan_reader(const int dd)
 
     meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
 
-    if ( meta_event->subevent == EVT_LE_ADVERTISING_REPORT ) {
+    if (meta_event->subevent != EVT_LE_ADVERTISING_REPORT)
+        return 0;
         
-        reports_count = meta_event->data[0];
-        offset = meta_event->data + 1;
-        ret = reports_count;
+    count = meta_event->data[0];
+    offset = meta_event->data + 1;
 
-        while ( reports_count-- ) {
-            info = (le_advertising_info *) offset;
-            ba2str(&(info->bdaddr), addr);
-            printf("%s - RSSI %d\n", addr, (uint8_t)info->data[info->length]);
-            offset = info->data + info->length + 2;
-        }
+    while (count--) {
 
-        return ret;
+        // Got info
+        info = (le_advertising_info *) offset;
+
+        // Parsing Data
+        res = malloc(sizeof(struct mmb_adapter_scan_result_s));
+        if (res == NULL)
+            return -1;
+
+        memset(res, 0, sizeof(struct mmb_adapter_scan_result_s));
+        bacpy(&res->addr, &info->bdaddr);
+        res->rssi = (uint8_t)info->data[info->length];
+        eir_parse_name(info->data, info->length,
+                res->name, sizeof(res->name));
+        res->next = *results;
+        *results = res;
+
+        // Next offset
+        offset = info->data + info->length + 2;
+
     }
 
-    return 0;
+    return meta_event->data[0];
 }
 
 int mmb_ble_scan_stop(const int dd)
@@ -115,19 +191,18 @@ int mmb_ble_scan_stop(const int dd)
     scan_enable_rq.rparam   = &status;
     scan_enable_rq.rlen     = 1;
     
-    if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
+    if ((ret = hci_send_req(dd, &scan_enable_rq, 10000)) < 0)
         return -1;
-#endif
-
+#else
     int ret;
-	uint8_t filter_dup = 0x00;
+	uint8_t filter_dup = 0x01;
 
-	ret = hci_le_set_scan_enable(dd, 0x00, filter_dup, 10000);
+	ret = hci_le_set_scan_enable(dd, 0x00, filter_dup, 5000);
 	if (ret < 0) {
 		perror("Disable scan failed");
         return -1;
 	}
-
+#endif
     return 0;
 }
 
@@ -162,7 +237,7 @@ int mmb_ble_scan_start(const int dd)
     scan_para_rq.rparam   = &status;
     scan_para_rq.rlen     = 1;
 
-    if ((ret = hci_send_req(dev, &scan_para_rq, timeout)) < 0)
+    if ((ret = hci_send_req(dd, &scan_para_rq, 10000)) < 0)
         return -1;
 
     // 2. Set BLE events report mask
@@ -178,7 +253,7 @@ int mmb_ble_scan_start(const int dd)
     event_mask_rq.rparam   = &status;
     event_mask_rq.rlen     = 1;
 
-    if ((ret = hci_send_req(dev, &event_mask_rq, timeout)) < 0)
+    if ((ret = hci_send_req(dd, &event_mask_rq, 10000)) < 0)
         return -2;
 
     // 3. Set BLE sacn enable
@@ -194,9 +269,9 @@ int mmb_ble_scan_start(const int dd)
     scan_enable_rq.rparam   = &status;
     scan_enable_rq.rlen     = 1;
 
-    if ((ret = hci_send_req(dev, &scan_enable_rq, timeout)) < 0)
+    if ((ret = hci_send_req(dd, &scan_enable_rq, 10000)) < 0)
         return -3;
-#endif
+#else
 
     struct hci_filter nf;
 
@@ -206,20 +281,21 @@ int mmb_ble_scan_start(const int dd)
 	uint8_t filter_policy = 0x00;
 	uint16_t interval = htobs(0x0010);
 	uint16_t window = htobs(0x0010);
-	uint8_t filter_dup = 0x00;
+	uint8_t filter_dup = 0x01;
 
 	ret = hci_le_set_scan_parameters(dd, scan_type, interval, window,
-						own_type, filter_policy, 10000);
+						own_type, filter_policy, 5000);
 	if (ret < 0) {
 		perror("Set scan parameters failed");
         return -2;
 	}
 
-	ret = hci_le_set_scan_enable(dd, 0x01, filter_dup, 10000);
+	ret = hci_le_set_scan_enable(dd, 0x01, filter_dup, 5000);
 	if (ret < 0) {
 		perror("Enable scan failed");
         return -3;
 	}
+#endif
 
     // 4. Set hci filter
     hci_filter_clear(&nf);
@@ -227,6 +303,7 @@ int mmb_ble_scan_start(const int dd)
     hci_filter_set_event(EVT_LE_META_EVENT, &nf);
     if ( setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0 )
         return -4;
+
 
     return 0;
 }

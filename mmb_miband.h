@@ -6,7 +6,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#define MMB_MIBAND_TIMEOUT_SEC              10
+#define MMB_MIBAND_TIMEOUT_SEC              30
 
 #define MMB_BATTERY_STATUS_LOW              1
 #define MMB_BATTERY_STATUS_CHARGING         2
@@ -52,15 +52,18 @@ typedef struct mmb_miband_ctx_s {
     bdaddr_t                    addr;
     int                         status;
     struct mmb_user_data_s      user;
+    struct mmb_battery_data_s   battery;
+    struct mmb_sensor_data_s    sensor;
+    struct mmb_realtime_data_s  realtime;
 
     struct evhr_ctx_s *         evhr;
     struct evhr_event_s *       ev_ble;
     struct evhr_event_s *       ev_timeout;
+    
+    /* for mmb_miband_led */
     struct evhr_event_s *       ev_led_timer;
-
-    struct mmb_battery_data_s   battery;
-    struct mmb_sensor_data_s    sensor;
-    struct mmb_realtime_data_s  realtime;
+    int                         led_mode;
+    int                         led_index;
 
 } MMB_MIBAND;
 
@@ -105,6 +108,11 @@ int mmb_miband_parser_read_type_resp(void *pdata, uint16_t hnd, uint8_t *val, si
 int mmb_miband_parser_read_resp(void *pdata, uint8_t *val, size_t size);
 int mmb_miband_parser_write_resp(void *pdata);
 int mmb_miband_parser_notify(void *pdata, uint16_t hnd, uint8_t *val, size_t size);
+
+/* mmb_miband_led.c */
+int mmb_miband_led_mode_change(MMB_MIBAND * this, int mode);
+int mmb_miband_led_start(MMB_MIBAND * this);
+int mmb_miband_led_stop(MMB_MIBAND * this);
 
 #endif /* ifndef MMB_MIBAND_H_ */
 

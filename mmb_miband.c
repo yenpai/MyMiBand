@@ -18,18 +18,7 @@ static void mmb_miband_reset_data(MMB_MIBAND * this)
 static void mmb_miband_update_timeout(MMB_MIBAND * this)
 {
     evhr_event_set_timer(
-            this->ev_timeout, MMB_MIBAND_TIMEOUT_SEC, 10, 0);
-}
-
-static void led_timer_cb(EVHR_EVENT * ev)
-{
-    MMB_MIBAND * this = ev->pdata;
-
-    // Flush LED
-    mmb_miband_send_ledcolor(this, MMB_LED_COLOR_BLUE);
-
-    // Bind next timer
-    evhr_event_set_timer(ev, 5, 0, 1);
+            this->ev_timeout, MMB_MIBAND_TIMEOUT_SEC, 0, 0);
 }
 
 static void do_task_connected(MMB_MIBAND * this)
@@ -62,12 +51,8 @@ static void do_task_connected(MMB_MIBAND * this)
     /* Update all information */
     ret = mmb_miband_send_battery_read(this);
 
-    /* Create LED timer */
-    if ((this->ev_led_timer = evhr_event_add_timer_once(
-                    this->evhr, 1, 0, this, led_timer_cb)) == NULL)
-    {
-        printf("[MMB][MIBAND][TASK] ERR: Bind LED Timer event failed!\n");
-    }
+    /* LED mode */
+    ret = mmb_miband_led_mode_change(this, 1);
 
     printf("[MMB][MIBAND][TASK] Connected Task Finish.\n");
 
@@ -200,6 +185,14 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
         return -4;
     }
 
+    // Start LED control
+    if (mmb_miband_led_start(this) < 0)
+    {
+        printf("[MMB][MIBAND][ERROR] Start MIBAND LED Control failed!\n");
+        mmb_miband_stop(this);
+        return -5;
+    }
+
     // Reset some miband data
     mmb_miband_reset_data(this);
 
@@ -211,6 +204,12 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
 
 int mmb_miband_stop(MMB_MIBAND * this)
 {
+    if (this == NULL)
+        return -1;
+
+    if (this->status == MMB_STATUS_STOPPED)
+        return -2;
+
     if (this->ev_ble) {
         if (this->ev_ble->fd > 0) {
             close(this->ev_ble->fd);
@@ -224,10 +223,7 @@ int mmb_miband_stop(MMB_MIBAND * this)
         this->ev_timeout = NULL;
     }
     
-    if (this->ev_led_timer) {
-        evhr_event_del(this->ev_led_timer);
-        this->ev_led_timer = NULL;
-    }
+    mmb_miband_led_stop(this);
 
     this->status = MMB_STATUS_STOPPED;
     printf("[MMB][MIBAND] Stopped.\n");

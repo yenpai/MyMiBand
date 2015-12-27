@@ -35,6 +35,17 @@
 #define MMB_PF_HND_PAIR             0x0034
 #define MMB_PF_HND_VIBRATION        0x0051
 
+static int min_diff_value(uint8_t old, uint8_t new)
+{
+    int d1 = old - new;
+    int d2 = new - old;
+    
+    if (abs(d1) > abs(d2))
+        return d2;
+    else
+        return d1;
+}
+
 static int mmb_miband_update_realtime_data(MMB_MIBAND * this, uint8_t * buf, size_t size)
 {
     struct mmb_realtime_data_s * old = &this->realtime;
@@ -96,8 +107,7 @@ static int mmb_miband_update_sensor_data(MMB_MIBAND * this, uint8_t * buf, size_
     struct mmb_sensor_data_s * old = &this->sensor;
     struct mmb_sensor_data_s new; 
     size_t data_size = sizeof(struct mmb_sensor_data_s);
-    int diff_x, diff_y, diff_z;
-    uint8_t action = 0;
+    int diff_x, diff_y, diff_z, max_abs_diff = 0;
 
     if (size < data_size)
     {
@@ -116,22 +126,41 @@ static int mmb_miband_update_sensor_data(MMB_MIBAND * this, uint8_t * buf, size_
             return -2;
 
         // check new/old data diff
-        diff_x = (new.x - old->x);
-        diff_y = (new.y - old->y);
-        diff_z = (new.z - old->z);
+        diff_x = min_diff_value(new.x, old->x);
+        diff_y = min_diff_value(new.y, old->y);
+        diff_z = min_diff_value(new.z, old->z);
 
+        // diff value = -256 ~ 256
         // ignore x/y/z diff less 64
-        if (abs(diff_x) > 64)
-            action |= 0x1;
-        if (abs(diff_y) > 64)
-            action |= 0x2;
-        if (abs(diff_z) > 64)
-            action |= 0x4;
+        max_abs_diff = ( abs(diff_x) >= abs(diff_y) ) ? abs(diff_x) : abs(diff_y) ;
+        max_abs_diff = ( abs(diff_z) >= max_abs_diff ) ? abs(diff_z) : max_abs_diff ;
 
-        if (action)
+        if (max_abs_diff > 64)
         {
             // Send Notify!
             printf("[MMB][MIBAND][UPDATE][SENSOR] Diff - X[%d] Y[%d] Z[%d]\n", diff_x, diff_y, diff_z);
+
+            // Change LED Mode to notify
+            if (this->led_mode == 2) {
+                mmb_miband_led_mode_change(this, 3);
+                this->led_index++;
+            } else if (this->led_mode == 3) {
+
+                if (this->led_index > 20)
+                {
+                    if (max_abs_diff > (128 + 64 + 32))
+                        this->led_index += 1;
+                }
+                else if (this->led_index > 10)
+                { 
+                    if (max_abs_diff > (128 + 64))
+                        this->led_index += 1;
+                }
+                else
+                {
+                    this->led_index += 1;
+                }
+            }
         }
     }
 
