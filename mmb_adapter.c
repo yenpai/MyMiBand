@@ -9,27 +9,17 @@
 #include "mmb_ble.h"
 
 #define SCAN_TIMER_INTERVAL_SEC         30
-#define SCAN_READ_TIMEOUT_SEC           5
+#define SCAN_WAIT_SEC_BEFORE_READ       3
+#define SCAN_READ_TIME_SEC              2
 
 static void thread_scan_main(void * pdata)
 {
     int ret, i;
     MMB_ADAPTER * this = pdata;
-    struct mmb_ble_device_base_s * device = NULL;
+    struct mmb_ble_advertising_s * adv = NULL;
     
     printf("[MMB][SCAN][THREAD] start.\n");
     
-    // flash or create new results
-    if (this->scan_results)
-    {
-        qlist_flush(this->scan_results);
-    } 
-    else if ((ret = qlist_create(&this->scan_results)) < 0)
-    {
-        printf("[MMB][SCAN][THREAD] ERR: qlist_create failed! ret = %d.\n", ret);
-        goto thread_exit;
-    }
-
     // Start
     if ((ret = mmb_ble_scan_start(this->dev)) < 0)
     {
@@ -37,25 +27,25 @@ static void thread_scan_main(void * pdata)
         goto thread_exit;
     }
 
-    // Read, default scan 5 sec
-    for (i=0;i<SCAN_READ_TIMEOUT_SEC;i++)
+    // Waiting..
+    sleep(SCAN_WAIT_SEC_BEFORE_READ);
+
+    // Reading
+    for (i=0;i<SCAN_READ_TIME_SEC*2;i++)
     {
         mmb_ble_scan_reader(this->dev, this->scan_results);
-        sleep(1);
+        usleep(500000);
     }
     
     printf("[MMB][SCAN][THREAD] stop, counts = %lu\n", this->scan_results->counts);
     
     // Flush all results and send notify to mmb_event
-    if (this->scan_results->counts > 0)
+    while ((adv = qlist_shift(this->scan_results)) != NULL)
     {
-        while ((device = qlist_shift(this->scan_results)) != NULL)
+        if (this->scan_notify_eventer)
         {
-            if (this->scan_notify_eventer)
-            {
-                mmb_event_send(this->scan_notify_eventer, 
-                        MMB_EV_SCAN_RESP, device, sizeof(struct mmb_ble_device_base_s));
-            }
+            mmb_event_send(this->scan_notify_eventer, 
+                    MMB_EV_SCAN_RESP, adv, sizeof(struct mmb_ble_advertising_s));
         }
     }
 
@@ -119,11 +109,20 @@ int mmb_adapter_scan_start(MMB_ADAPTER * this, EVHR_CTX * evhr, struct mmb_event
 
     this->scan_notify_eventer = eventer;
 
+    if (this->scan_results == NULL)
+    {
+        if (qlist_create(&this->scan_results) < 0)
+        {
+            printf("[MMB][SCAN] ERR: qlist_create failed!\n");
+            return -2;
+        }
+    }
+
     if ((this->ev_scan_timer = evhr_event_add_timer_once(
             evhr, 0, 0, this, scan_timer_cb)) == NULL)
     {
-        printf("[MMB][ADAPTER][SCAN] add scan_timer_event failed!\n");
-        return -2;
+        printf("[MMB][SCAN] add scan_timer_event failed!\n");
+        return -3;
     }
 
     printf("[MMB][SCAN] start.\n");

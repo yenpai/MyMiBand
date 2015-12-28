@@ -120,45 +120,50 @@ int mmb_ble_scan_reader(const int dd, QList * qlist)
     uint8_t count;
     void * offset;
 
-    struct mmb_ble_device_base_s * device = NULL;
+    struct mmb_ble_advertising_s * adv = NULL;
+    int adv_count = 0;
 
-    len = read(dd, buf, sizeof(buf));
-    if (len < HCI_EVENT_HDR_SIZE)
-        return 0;
+    while (1)
+    {
 
-    meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+        len = read(dd, buf, sizeof(buf));
+        if (len < HCI_EVENT_HDR_SIZE)
+            break;
 
-    if (meta_event->subevent != EVT_LE_ADVERTISING_REPORT)
-        return 0;    
+        meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
+        if (meta_event->subevent != EVT_LE_ADVERTISING_REPORT)
+            continue;
 
-    count = meta_event->data[0];
-    offset = meta_event->data + 1;
+        count = meta_event->data[0];
+        offset = meta_event->data + 1;
 
-    while (count--) {
+        while (count--) {
 
-        // Got info
-        info = (le_advertising_info *) offset;
+            // Got info
+            info = (le_advertising_info *) offset;
 
-        // Parsing Data
-        device = malloc(sizeof(struct mmb_ble_device_base_s));
-        if (device == NULL)
-            return -2;
+            // Parsing Data
+            adv = malloc(sizeof(struct mmb_ble_advertising_s));
+            if (adv == NULL)
+                break;;
 
-        memset(device, 0, sizeof(struct mmb_ble_device_base_s));
-        bacpy(&device->addr, &info->bdaddr);
-        device->rssi = (uint8_t)info->data[info->length];
-        eir_parse_name(info->data, info->length,
-                device->name, sizeof(device->name));
+            memset(adv, 0, sizeof(struct mmb_ble_advertising_s));
+            bacpy(&adv->addr, &info->bdaddr);
+            adv->rssi = (uint8_t)info->data[info->length];
+            eir_parse_name(info->data, info->length,
+                    adv->name, sizeof(adv->name));
 
-        // Put device into qlist_new
-        qlist_push(qlist, device);
+            // Put device into qlist_new
+            qlist_push(qlist, adv);
 
-        // Next offset
-        offset = info->data + info->length + 2;
+            // Next offset
+            offset = info->data + info->length + 2;
+
+        }
 
     }
 
-    return meta_event->data[0];
+    return adv_count;
 }
 
 int mmb_ble_scan_stop(const int dd)

@@ -13,17 +13,17 @@
 static int event_do_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
 {
     int ret;
-    struct mmb_ble_device_base_s * base = NULL;
+    struct mmb_ble_advertising_s * adv = NULL;
     MMB_DEVICE * device = NULL;
     void * device_ctx   = NULL;
     char addr[18];
 
-    if (data->size < sizeof(struct mmb_ble_device_base_s))
+    if (data->size < sizeof(struct mmb_ble_advertising_s))
         return -1;
 
-    base = data->buf;
-    ba2str(&base->addr, addr);
-    printf("[MMB][EVENT] ==> Name[%s], Addr[%s], Rssi[%d]\n", base->name, addr, base->rssi);
+    adv = data->buf;
+    ba2str(&adv->addr, addr);
+    printf("[MMB][EVENT] ==> Name[%s], Addr[%s], Rssi[%d]\n", adv->name, addr, adv->rssi);
 
     if (mmb_miband_probe(data->buf) == 0)
     {
@@ -36,7 +36,7 @@ static int event_do_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
         }
 
         // Init MIBAND
-        if ((ret = mmb_miband_init(device_ctx, &base->addr, this->evhr)) < 0)
+        if ((ret = mmb_miband_init(device_ctx, &adv->addr, this->evhr)) < 0)
         {
             printf("[MMB][EVENT] ==> ERR: mmb_miband_init failed! ret[%d]", ret);
             free(device_ctx);
@@ -52,8 +52,8 @@ static int event_do_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
         }
 
         // Init Device
-        strncpy(device->name, base->name, sizeof(device->name));
-        bacpy(&device->addr, &base->addr);
+        strncpy(device->name, adv->name, sizeof(device->name));
+        bacpy(&device->addr, &adv->addr);
         device->device_ctx = device_ctx;
 
         // Start DeviceCtx (MiBand)

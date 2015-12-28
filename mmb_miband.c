@@ -132,7 +132,7 @@ static void ble_timeout_cb(EVHR_EVENT * ev)
     mmb_miband_stop((MMB_MIBAND *)ev->pdata);
 }
 
-int mmb_miband_probe(struct mmb_ble_device_base_s * device)
+int mmb_miband_probe(struct mmb_ble_advertising_s * device)
 {
     if (strncmp(device->name, "MI", 2) != 0)
         return -1;
