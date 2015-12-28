@@ -4,6 +4,7 @@
 
 #include "evhr.h"
 #include "mmb_util.h"
+#include "mmb_event.h"
 #include "mmb_adapter.h"
 #include "mmb_ble.h"
 
@@ -14,13 +15,21 @@ static void thread_scan_main(void * pdata)
 {
     int ret, i;
     MMB_ADAPTER * this = pdata;
-    uint64_t notify = 1;
+    struct mmb_ble_device_base_s * device = NULL;
     
     printf("[MMB][SCAN][THREAD] start.\n");
     
-    this->scan_resp = NULL;
-    this->scan_resp_counts = 0;
-    
+    // flash or create new results
+    if (this->scan_results)
+    {
+        qlist_flush(this->scan_results);
+    } 
+    else if ((ret = qlist_create(&this->scan_results)) < 0)
+    {
+        printf("[MMB][SCAN][THREAD] ERR: qlist_create failed! ret = %d.\n", ret);
+        goto thread_exit;
+    }
+
     // Start
     if ((ret = mmb_ble_scan_start(this->dev)) < 0)
     {
@@ -31,23 +40,33 @@ static void thread_scan_main(void * pdata)
     // Read, default scan 5 sec
     for (i=0;i<SCAN_READ_TIMEOUT_SEC;i++)
     {
-        this->scan_resp_counts += mmb_ble_scan_reader(this->dev, &this->scan_resp);
+        mmb_ble_scan_reader(this->dev, this->scan_results);
         sleep(1);
     }
     
-    // Stop
-    if ((ret = mmb_ble_scan_stop(this->dev)) < 0)
+    printf("[MMB][SCAN][THREAD] stop, counts = %lu\n", this->scan_results->counts);
+    
+    // Flush all results and send notify to mmb_event
+    if (this->scan_results->counts > 0)
     {
-        printf("[MMB][SCAN][THREAD] ERR: ble_scan_stop failed! ret = %d.\n", ret);
-        goto thread_exit;
+        while ((device = qlist_shift(this->scan_results)) != NULL)
+        {
+            if (this->scan_notify_eventer)
+            {
+                mmb_event_send(this->scan_notify_eventer, 
+                        MMB_EV_SCAN_RESP, device, sizeof(struct mmb_ble_device_base_s));
+            }
+        }
     }
 
-    printf("[MMB][SCAN][THREAD] stop.\n");
 
 thread_exit:
 
+    // restart a timer to invoke next scan
+    if (this->ev_scan_timer)
+        evhr_event_set_timer(this->ev_scan_timer, SCAN_TIMER_INTERVAL_SEC, 0, 1);
+    
     printf("[MMB][SCAN][THREAD] exit.\n");
-    write(this->ev_scan_notify->fd, &notify, sizeof(notify));
 }
 
 static void scan_timer_cb(EVHR_EVENT * ev)
@@ -63,50 +82,9 @@ static void scan_timer_cb(EVHR_EVENT * ev)
     }
 }
 
-static void scan_notify_cb(EVHR_EVENT * ev)
-{
-    MMB_ADAPTER * this = ev->pdata;
-
-    // Scan Callback
-    if (this->cb_scan)
-        this->cb_scan(this->cb_scan_pdata, this->scan_resp, this->scan_resp_counts);
-
-    // Free results
-    if (this->scan_resp)
-    {
-        mmb_ble_scan_results_free(this->scan_resp);
-        this->scan_resp = NULL;
-        this->scan_resp_counts = 0;
-    }
-
-    // Wait thread stop
-    if (this->thread_scan_pid > 0)
-    {
-        pthread_cancel(this->thread_scan_pid);
-        pthread_join(this->thread_scan_pid, NULL);    
-        this->thread_scan_pid = 0;
-    }
-
-    // restart a timer to invoke next scan
-    if (this->ev_scan_timer)
-        evhr_event_set_timer(this->ev_scan_timer, SCAN_TIMER_INTERVAL_SEC, 0, 1);
-}
-
 int mmb_adapter_scan_stop(MMB_ADAPTER * this)
 {
-    if (this->thread_scan_pid > 0)
-    {
-        pthread_cancel(this->thread_scan_pid);
-        pthread_join(this->thread_scan_pid, NULL);    
-        this->thread_scan_pid = 0;
-    }
-    
-    if (this->scan_resp)
-    {
-        mmb_ble_scan_results_free(this->scan_resp);
-        this->scan_resp = NULL;
-        this->scan_resp_counts = 0;
-    }
+    struct mmb_ble_device_base_s * device = NULL;
 
     if (this->ev_scan_timer)
     {
@@ -114,11 +92,23 @@ int mmb_adapter_scan_stop(MMB_ADAPTER * this)
         this->ev_scan_timer = NULL;
     }
     
+    if (this->thread_scan_pid > 0)
+    {
+        pthread_cancel(this->thread_scan_pid);
+        pthread_join(this->thread_scan_pid, NULL);    
+        this->thread_scan_pid = 0;
+    }
+    
+    if (this->scan_results) {
+        while ((device = qlist_shift(this->scan_results)) != NULL)
+            free(device);
+    }
+
     printf("[MMB][SCAN] stop.\n");
     return 0;
 }
 
-int mmb_adapter_scan_start(MMB_ADAPTER * this, EVHR_CTX * evhr, MMB_ADAPTER_SCAN_CB cb, void *pdata)
+int mmb_adapter_scan_start(MMB_ADAPTER * this, EVHR_CTX * evhr, struct mmb_event_ctx_s * eventer)
 {
 
     if (this->thread_scan_pid > 0)
@@ -127,11 +117,10 @@ int mmb_adapter_scan_start(MMB_ADAPTER * this, EVHR_CTX * evhr, MMB_ADAPTER_SCAN
         return -1;
     }
 
-    this->cb_scan = cb;
-    this->cb_scan_pdata = pdata;
+    this->scan_notify_eventer = eventer;
 
     if ((this->ev_scan_timer = evhr_event_add_timer_once(
-            evhr, 0, 10, this, scan_timer_cb)) == NULL)
+            evhr, 0, 0, this, scan_timer_cb)) == NULL)
     {
         printf("[MMB][ADAPTER][SCAN] add scan_timer_event failed!\n");
         return -2;
@@ -144,15 +133,8 @@ int mmb_adapter_scan_start(MMB_ADAPTER * this, EVHR_CTX * evhr, MMB_ADAPTER_SCAN
 
 int mmb_adapter_disconnect(MMB_ADAPTER * this)
 {
-    if (this->ev_scan_timer) {
-        evhr_event_del(this->ev_scan_timer);
-        this->ev_scan_timer = NULL;
-    }
 
-    if (this->ev_scan_notify) {
-        evhr_event_del(this->ev_scan_notify);
-        this->ev_scan_notify = NULL;
-    }
+    mmb_adapter_scan_stop(this);
     
     if (this->dev > 0)
     {
@@ -171,7 +153,7 @@ int mmb_adapter_disconnect(MMB_ADAPTER * this)
     return 0;
 }
 
-int mmb_adapter_connect(MMB_ADAPTER * this, EVHR_CTX * evhr)
+int mmb_adapter_connect(MMB_ADAPTER * this)
 {
     int dev_id;
 
@@ -188,14 +170,6 @@ int mmb_adapter_connect(MMB_ADAPTER * this, EVHR_CTX * evhr)
     {
         printf("[MMB][ADAPTER] setting non blocking mode failed!\n");
         return -2;
-    }
-
-    // Add a counter to listen scan thread result
-    if ((this->ev_scan_notify = evhr_event_add_counter(
-            evhr, 0, this, scan_notify_cb)) == NULL)
-    {
-        printf("[MMB][ADAPTER][SCAN] add scan_notify_event failed!\n");
-        return -3;
     }
 
     printf("[MMB][ADAPTER] connected.\n");

@@ -17,6 +17,7 @@ enum mmb_status_e {
 typedef struct mmb_ctx_s {
     int                         status;
     struct evhr_ctx_s *         evhr;
+    struct mmb_event_ctx_s *    eventer;
     struct mmb_adapter_s *      adapter;
     struct qlist_ctx_s *        devices;
 } MMB_CTX;

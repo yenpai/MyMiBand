@@ -111,19 +111,7 @@ static void eir_parse_name(uint8_t *eir, size_t eir_len, char *buf, size_t buf_l
     buf[0] = '\0';
 }
 
-void mmb_ble_scan_results_free(struct mmb_adapter_scan_result_s * node)
-{
-    struct mmb_adapter_scan_result_s * next = NULL;
-
-    while (node)
-    {
-        next = node->next;
-        free(node);
-        node = next;
-    }
-}
-
-int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** results)
+int mmb_ble_scan_reader(const int dd, QList * qlist)
 {
     uint8_t buf[HCI_MAX_EVENT_SIZE];
     int len;
@@ -132,7 +120,7 @@ int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** result
     uint8_t count;
     void * offset;
 
-    struct mmb_adapter_scan_result_s * res = NULL;
+    struct mmb_ble_device_base_s * device = NULL;
 
     len = read(dd, buf, sizeof(buf));
     if (len < HCI_EVENT_HDR_SIZE)
@@ -141,8 +129,8 @@ int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** result
     meta_event = (evt_le_meta_event*)(buf+HCI_EVENT_HDR_SIZE+1);
 
     if (meta_event->subevent != EVT_LE_ADVERTISING_REPORT)
-        return 0;
-        
+        return 0;    
+
     count = meta_event->data[0];
     offset = meta_event->data + 1;
 
@@ -152,17 +140,18 @@ int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** result
         info = (le_advertising_info *) offset;
 
         // Parsing Data
-        res = malloc(sizeof(struct mmb_adapter_scan_result_s));
-        if (res == NULL)
-            return -1;
+        device = malloc(sizeof(struct mmb_ble_device_base_s));
+        if (device == NULL)
+            return -2;
 
-        memset(res, 0, sizeof(struct mmb_adapter_scan_result_s));
-        bacpy(&res->addr, &info->bdaddr);
-        res->rssi = (uint8_t)info->data[info->length];
+        memset(device, 0, sizeof(struct mmb_ble_device_base_s));
+        bacpy(&device->addr, &info->bdaddr);
+        device->rssi = (uint8_t)info->data[info->length];
         eir_parse_name(info->data, info->length,
-                res->name, sizeof(res->name));
-        res->next = *results;
-        *results = res;
+                device->name, sizeof(device->name));
+
+        // Put device into qlist_new
+        qlist_push(qlist, device);
 
         // Next offset
         offset = info->data + info->length + 2;
@@ -174,7 +163,7 @@ int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s ** result
 
 int mmb_ble_scan_stop(const int dd)
 {
-#if 0
+#if 0 
     struct hci_request        scan_enable_rq;
     le_set_scan_enable_cp     scan_enable_cp;
     
@@ -197,7 +186,7 @@ int mmb_ble_scan_stop(const int dd)
     int ret;
 	uint8_t filter_dup = 0x01;
 
-	ret = hci_le_set_scan_enable(dd, 0x00, filter_dup, 5000);
+	ret = hci_le_set_scan_enable(dd, 0x00, filter_dup, 10000);
 	if (ret < 0) {
 		perror("Disable scan failed");
         return -1;
@@ -284,13 +273,13 @@ int mmb_ble_scan_start(const int dd)
 	uint8_t filter_dup = 0x01;
 
 	ret = hci_le_set_scan_parameters(dd, scan_type, interval, window,
-						own_type, filter_policy, 5000);
+						own_type, filter_policy, 10000);
 	if (ret < 0) {
 		perror("Set scan parameters failed");
         return -2;
 	}
 
-	ret = hci_le_set_scan_enable(dd, 0x01, filter_dup, 5000);
+	ret = hci_le_set_scan_enable(dd, 0x01, filter_dup, 10000);
 	if (ret < 0) {
 		perror("Enable scan failed");
         return -3;

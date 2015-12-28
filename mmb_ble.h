@@ -6,6 +6,8 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include "qlist.h"
+
 #define MMB_BLE_ATT_CID                     0x0004
 #define MMB_BLE_ATT_OPCODE_ERROR            0x01
 #define MMB_BLE_ATT_OPCODE_READ_TYPE_REQ    0x08
@@ -36,16 +38,14 @@ struct mmb_ble_att_data_parser_cb_s {
 
 int mmb_ble_att_data_parser(uint8_t *buf, size_t size, struct mmb_ble_att_data_parser_cb_s * cb, void *pdata);
 
-struct mmb_adapter_scan_result_s {
+struct mmb_ble_device_base_s {
     bdaddr_t addr;
     uint8_t  rssi;
     char     name[32];
-    struct mmb_adapter_scan_result_s * next;
-};
+} __attribute__((packed));
 
 int mmb_ble_scan_start(const int dd);
 int mmb_ble_scan_stop(const int dd);
-int mmb_ble_scan_reader(const int dd, struct mmb_adapter_scan_result_s **);
-void mmb_ble_scan_results_free(struct mmb_adapter_scan_result_s * node);
+int mmb_ble_scan_reader(const int dd, QList * qlist);
 
 #endif 
