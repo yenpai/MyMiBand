@@ -10,10 +10,6 @@ enum mmb_status_e {
     MMB_STATUS_CONNECTED    = 2,
 };
 
-#define MMB_EV_UNKNOW               0x0000
-#define MMB_EV_SCAN_REQ             0x0201
-#define MMB_EV_SCAN_RESP            0x0202
-
 typedef struct mmb_ctx_s {
     int                         status;
     struct evhr_ctx_s *         evhr;
