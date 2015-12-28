@@ -6,6 +6,7 @@
 
 #include "mmb_ctx.h"
 #include "mmb_adapter.h"
+#include "mmb_device.h"
 #include "mmb_miband.h"
 
 static void adapter_scan_cb(void *pdata, struct mmb_adapter_scan_result_s * results, int size)
