@@ -8,7 +8,6 @@
 #include <bluetooth/hci_lib.h>
 
 #include "mmb_ctx.h"
-#include "mmb_miband.h"
 
 /* mmb_service.c */
 extern int mmb_service_init(MMB_CTX * this, bdaddr_t * ble_adapter_addr);

@@ -65,6 +65,8 @@ flags = [
 '../LibRC/evhr',
 '-I',
 '../LibRC/qlist',
+'-I',
+'../LibRC/eble',
 '-isystem',
 '/usr/include',
 '-isystem',

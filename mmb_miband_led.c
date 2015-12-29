@@ -148,7 +148,7 @@ int mmb_miband_led_mode_change(MMB_MIBAND * this, int mode)
     return 0;
 }
 
-int mmb_miband_led_start(MMB_MIBAND * this)
+int mmb_miband_led_start(MMB_MIBAND * this, EVHR_CTX * evhr)
 {
 
     this->led_mode = 0;
@@ -156,7 +156,7 @@ int mmb_miband_led_start(MMB_MIBAND * this)
 
     // Add timer into event handler
     if ((this->ev_led_timer = evhr_event_add_timer_once(
-            this->evhr, 0, 10, this, led_timer_cb)) == NULL)
+            evhr, 0, 10, this, led_timer_cb)) == NULL)
     {
         printf("[MMB][MIBAND][ERROR] Bind Timer event failed!\n");
         mmb_miband_stop(this);

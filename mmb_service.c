@@ -1,79 +1,55 @@
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "evhr.h"
 #include "qlist.h"
+#include "eble.h"
 
 #include "mmb_ctx.h"
 #include "mmb_event.h"
-#include "mmb_adapter.h"
-#include "mmb_device.h"
 #include "mmb_miband.h"
 
-static int event_do_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
+static void do_event_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
 {
-    int ret;
-    struct mmb_ble_advertising_s * adv = NULL;
-    MMB_DEVICE * device = NULL;
-    void * device_ctx   = NULL;
+    EBLE_DEVICE * device;
     char addr[18];
 
-    if (data->size < sizeof(struct mmb_ble_advertising_s))
-        return -1;
+    assert(this && this->devices);
+    assert(data && data->buf);
 
-    adv = data->buf;
-    ba2str(&adv->addr, addr);
-    printf("[MMB][EVENT] ==> Name[%s], Addr[%s], Rssi[%d]\n", adv->name, addr, adv->rssi);
+    // Read Device Info
+    device = data->buf;
+    ba2str(&device->addr, addr);
+    printf("[MMB][EVENT][SCAN][RESP] Device Name[%s], Addr[%s], Rssi[%d]\n", 
+            device->eir.LocalName, addr, device->rssi);
 
-    if (mmb_miband_probe(data->buf) == 0)
+    // Probe, Init, Start, Push into devices
+    if (mmb_miband_probe(device) == 0)
     {
-        printf("[MMB][EVENT] ==> MIBAND Device.\n");
-        // Create DeviceCtx (MiBand)
-        if ((device_ctx = (void *) malloc(sizeof(struct mmb_miband_ctx_s))) == NULL)
+        if (mmb_miband_init(&device) == 0)
         {
-            printf("[MMB][EVENT] ==> ERR: malloc failed!\n");
-            return -2;
+            if (mmb_miband_start((MMB_MIBAND *)device, this->adapter, this->evhr) == 0)
+            {
+                qlist_push(this->devices, device);
+                return;
+            }
         }
-
-        // Init MIBAND
-        if ((ret = mmb_miband_init(device_ctx, &adv->addr, this->evhr)) < 0)
-        {
-            printf("[MMB][EVENT] ==> ERR: mmb_miband_init failed! ret[%d]", ret);
-            free(device_ctx);
-            return -2;
-        }
-
-        // Create Device
-        if ((device = malloc(sizeof(MMB_DEVICE))) == NULL)
-        {
-            printf("[MMB][EVENT] \t\t==> ERR: malloc failed!\n");
-            free(device_ctx);
-            return -2;
-        }
-
-        // Init Device
-        strncpy(device->name, adv->name, sizeof(device->name));
-        bacpy(&device->addr, &adv->addr);
-        device->device_ctx = device_ctx;
-
-        // Start DeviceCtx (MiBand)
-        printf("[MMB][EVENT] ==> Start MIBAND.\n");
-        if ((ret = mmb_miband_start(device->device_ctx, &this->adapter->addr)) < 0)
-        {
-            printf("[MMB][EVENT] \t\t==> ERR: mmb_miband_start failed! ret = %d.\n", ret);
-            free(device_ctx);
-            free(device);
-            return -2;
-        }
-
-        // Push device into list
-        qlist_push(this->devices, device);
-
-        return 0;
+        
+        goto free_and_exit;
     }
 
-    printf("[MMB][EVENT] ==> Unknow device.\n");
-    return -99;
+    // Unknow Device
+
+free_and_exit:
+
+    eble_device_free(device);
+}
+
+static void adapter_scan_cb(void * pdata, EBLE_DEVICE * device)
+{
+    MMB_CTX * this = pdata;
+    mmb_event_send(this->eventer, MMB_EV_SCAN_RESP, device, sizeof(device));
 }
 
 static void event_handle_cb(MMB_EVENT_DATA * data, void *pdata)   
@@ -86,15 +62,15 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void *pdata)
         case MMB_EV_SCAN_REQ:
 
             printf("[MMB][EVENT] MMB_EV_SCAN_REQ.\n");
-            if ((ret = mmb_adapter_scan_start(this->adapter, this->evhr, this->eventer)) < 0)
-                printf("[MMB][EVENT] ERR: mmb_adapter_scan_start failed! ret = %d.\n", ret);
+            if ((ret = eble_adapter_scan(this->adapter, 5, adapter_scan_cb, this)) < 0)
+                printf("[MMB][EVENT] ERR: eble_adapter_scan failed! ret = %d.\n", ret);
 
             break;
 
         case MMB_EV_SCAN_RESP:
 
             printf("[MMB][EVENT] MMB_EV_SCAN_RESP.\n");
-            event_do_scan_resp(this, data);
+            do_event_scan_resp(this, data);
 
             break;
 
@@ -106,10 +82,8 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void *pdata)
             break;
     }
 
-    if (data->size > 0 && data->buf)
-        free(data->buf);
-
 }
+
 
 int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
 {
@@ -132,22 +106,17 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
         return -2;
     }
 
+    // Inital Adapter
+    if ((ret = eble_adapter_create(&this->adapter, addr)) != EBLE_RTN_SUCCESS)
+    {
+        printf("[MMB][SERVICE] ERR: eble_adapter_create failed! ret = %d\n", ret);
+        return -3;
+    }
+
     // Initial Devices
     if ((ret = qlist_create(&this->devices)) < 0)
     {
         printf("[MMB][SERVICE] ERR: qlist_create failed! ret = %d\n", ret);
-        return -2;
-    }
-
-    // Inital Adapter
-    if ((this->adapter = malloc(sizeof(MMB_ADAPTER))) == NULL)
-    {
-        printf("[MMB][SERVICE] ERR: malloc failed! ret = %d\n", ret);
-        return -3;
-    }
-    else if ((ret = mmb_adapter_init(this->adapter, addr)) < 0)
-    {
-        printf("[MMB][SERVICE] ERR: mmb_adapter_init failed! ret = %d\n", ret);
         return -4;
     }
 
@@ -159,21 +128,27 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
 int mmb_service_start(MMB_CTX * this)
 {
     int ret;
-    
-    MMB_DEVICE * device;
+    EBLE_DEVICE * device;
 
     printf("[MMB][SERVICE] start.\n");
 
+    // Assert
+    assert(this);
+    assert(this->devices);
+    assert(this->eventer);
+    assert(this->adapter);
 
     while (1)
     {
+        eble_adapter_reset(this->adapter);
+
         if ((ret = mmb_event_start(this->eventer, this->evhr, event_handle_cb, this)) < 0)
         {
             printf("[MMB][SERVICE] ERR: mmb_event_start failed! ret = %d.\n", ret);
             goto free_next_loop;
         }
 
-        if ((ret = mmb_adapter_connect(this->adapter)) < 0)
+        if ((ret = eble_adapter_connect(this->adapter)) < 0)
         {
             printf("[MMB][SERVICE] ERR: mmb_adapter_connect failed! ret = %d.\n", ret);
             goto free_next_loop;
@@ -189,20 +164,17 @@ free_next_loop:
 
         printf("[MMB][SERVICE] stop.\n");
         
-        mmb_adapter_scan_stop(this->adapter);
-        mmb_adapter_disconnect(this->adapter);
+
+        eble_adapter_disconnect(this->adapter);
 
         while (this->devices->counts > 0)
         {
             if ((device = qlist_shift(this->devices)) != NULL)
-            {
-                mmb_miband_stop(device->device_ctx);
-                free(device->device_ctx);
-                free(device);
-            }
+                eble_device_free(device);
         }
 
         mmb_event_stop(this->eventer);
+
     }
 
     return 0;

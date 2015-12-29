@@ -5,7 +5,6 @@
 
 #include "evhr.h"
 #include "mmb_ctx.h"
-#include "mmb_ble.h"
 #include "mmb_miband.h"
 
 static void mmb_miband_reset_data(MMB_MIBAND * this)
@@ -65,7 +64,6 @@ error_hanlde:
     mmb_miband_stop(this);
 }
 
-
 static void ble_write_cb(EVHR_EVENT * ev)
 {
     MMB_MIBAND * this = ev->pdata;
@@ -100,24 +98,34 @@ static void ble_read_cb(EVHR_EVENT * ev)
 {
     
     MMB_MIBAND * this = ev->pdata;
-    uint8_t buf[MMB_BUFFER_SIZE];
-    int size = 0;
+    EBLE_ATTREAD_DATA data;
 
-    static struct mmb_ble_att_data_parser_cb_s parser_cb = {
-        .error_cb           = mmb_miband_parser_error,
-        .read_type_resp_cb  = mmb_miband_parser_read_type_resp,
-        .read_resp_cb       = mmb_miband_parser_read_resp,
-        .write_resp_cb      = mmb_miband_parser_write_resp,
-        .notify_cb          = mmb_miband_parser_notify,
-    };
-    
-    size = read(ev->fd, buf, MMB_BUFFER_SIZE);
-    if (size > 0)
+    if (eble_attread_data(&this->device, &data) != EBLE_RTN_SUCCESS)
+        return;
+
+    switch (data.opcode)
     {
-        mmb_ble_att_data_parser(buf, size, &parser_cb, this);
-        mmb_miband_update_timeout(this);
+        case EBLE_ATTREAD_OP_ERROR:
+            mmb_miband_op_error(this, data.hnd, data.error_code);
+            break;
+        case EBLE_ATTREAD_OP_RESP_READ_TYPE:
+            mmb_miband_op_read_type_resp(this, data.hnd, data.val, data.size);
+            break;
+        case EBLE_ATTREAD_OP_RESP_READ:
+            mmb_miband_op_read_resp(this, data.val, data.size);
+            break;
+        case EBLE_ATTREAD_OP_RESP_WRITE:
+            mmb_miband_op_write_resp(this);
+            break;
+        case EBLE_ATTREAD_OP_NOTIFICATION:
+            mmb_miband_op_notification(this, data.hnd, data.val, data.size);
+            break;
+        default:
+            printf("[MMB][MIBAND][OP] UNKNOW.\n");
+            return;
     }
 
+    mmb_miband_update_timeout(this);
 }
 
 static void ble_error_cb(EVHR_EVENT * ev)
@@ -132,23 +140,30 @@ static void ble_timeout_cb(EVHR_EVENT * ev)
     mmb_miband_stop((MMB_MIBAND *)ev->pdata);
 }
 
-int mmb_miband_probe(struct mmb_ble_advertising_s * device)
+int mmb_miband_probe(EBLE_DEVICE * device)
 {
-    if (strncmp(device->name, "MI", 2) != 0)
+    if (strncmp(device->eir.LocalName, "MI", 2) != 0)
         return -1;
 
     printf( "[MMB][MIBAND][PROBE] \t\t==> "
-            "MiBand Device: Name[%s].\n", device->name);
+            "MiBand Device: Name[%s].\n", device->eir.LocalName);
 
     return 0;
 }
 
-int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr)
+int mmb_miband_init(EBLE_DEVICE ** device)
 {
+    MMB_MIBAND * this = NULL;
 
-    memset(this, 0, sizeof(MMB_MIBAND));
-    bacpy(&this->addr, dest);
-    this->evhr = evhr;
+    // Extern memory size of device
+    this = realloc(*device, sizeof(MMB_MIBAND));
+    if (this ==  NULL)
+        this = (MMB_MIBAND *) *device;
+    else
+        *device = &this->device;
+
+    // Inital miband data
+    memset(this + sizeof(EBLE_DEVICE), 0, sizeof(MMB_MIBAND) - sizeof(EBLE_DEVICE));
 
     //str2ba("88:0F:10:2A:5F:08", &this->addr);
     this->user.uid       = 19820610;
@@ -164,14 +179,14 @@ int mmb_miband_init(MMB_MIBAND * this, bdaddr_t * dest, struct evhr_ctx_s * evhr
     return 0;
 }
 
-int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
+int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr)
 {
     int sock = -1;
 
     printf("[MMB][MIBAND] Start.\n");
 
     // Create BLE connect
-    if ((sock = mmb_ble_connect(src, &this->addr)) < 0)
+    if ((sock = eble_device_connect(&this->device, adapter)) < 0)
     {
         printf("[MMB][MIBAND][ERR] Connect MiBand failed!\n");
         return -1;
@@ -179,8 +194,8 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
 
     // Bind BLE event into evhr
     if ((this->ev_ble = evhr_event_add_socket(
-                    this->evhr, sock, 
-                    this, ble_read_cb, ble_write_cb, ble_error_cb)) == NULL)
+            evhr, sock, this, 
+            ble_read_cb, ble_write_cb, ble_error_cb)) == NULL)
     {
         printf("[MMB][MIBAND][ERR] Bind MiBand event failed!\n");
         mmb_miband_stop(this);
@@ -189,7 +204,7 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
 
     // Add timer into event handler
     if ((this->ev_timeout = evhr_event_add_timer_periodic(
-            this->evhr, MMB_MIBAND_TIMEOUT_SEC, 10, 
+            evhr, MMB_MIBAND_TIMEOUT_SEC, 10, 
             this, ble_timeout_cb)) == NULL)
     {
         printf("[MMB][MIBAND][ERROR] Bind Timer event failed!\n");
@@ -198,7 +213,7 @@ int mmb_miband_start(MMB_MIBAND * this, bdaddr_t * src)
     }
 
     // Start LED control
-    if (mmb_miband_led_start(this) < 0)
+    if (mmb_miband_led_start(this, evhr) < 0)
     {
         printf("[MMB][MIBAND][ERROR] Start MIBAND LED Control failed!\n");
         mmb_miband_stop(this);
@@ -239,9 +254,6 @@ int mmb_miband_stop(MMB_MIBAND * this)
 
     this->status = MMB_STATUS_STOPPED;
     printf("[MMB][MIBAND] Stopped.\n");
-
-    // TODO: Hard Code to stop here, need to implement callback
-    evhr_stop(this->evhr);
 
     return 0;
 }
