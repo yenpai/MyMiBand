@@ -1,7 +1,7 @@
 #ifndef MMB_CTX_H_
 #define MMB_CTX_H_
 
-#define MMB_BUFFER_SIZE             512
+#include <bluetooth/bluetooth.h>
 
 enum mmb_status_e {
     MMB_STATUS_STOPPED      = -1,
@@ -17,5 +17,8 @@ typedef struct mmb_ctx_s {
     struct eble_adapter_ctx_s * adapter;
     struct qlist_ctx_s *        devices;
 } MMB_CTX;
+
+int mmb_service_init(MMB_CTX * this, bdaddr_t * ble_adapter_addr);
+int mmb_service_start(MMB_CTX * this);
 
 #endif

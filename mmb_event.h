@@ -6,15 +6,17 @@
 
 #include "evhr.h"
 
-#define MMB_EV_UNKNOW               0x0000
-#define MMB_EV_SCAN_REQ             0x0201
-#define MMB_EV_SCAN_RESP            0x0202
+typedef enum {
+    MMB_EV_UNKNOW       = 0x0000,
+    MMB_EV_SCAN_REQ     = 0x0201,
+    MMB_EV_SCAN_RESP    = 0x0202,
+} MMB_EV;
 
 typedef struct mmb_event_data_s {
-    uint16_t    type;
+    MMB_EV      type;
     size_t      size;
     void *      buf; 
-} MMB_EVENT_DATA;
+} __attribute__((packed)) MMB_EVENT_DATA;
 
 typedef void (*MMB_EVENT_CB) (MMB_EVENT_DATA *, void *pdata);
 

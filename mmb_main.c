@@ -9,10 +9,6 @@
 
 #include "mmb_ctx.h"
 
-/* mmb_service.c */
-extern int mmb_service_init(MMB_CTX * this, bdaddr_t * ble_adapter_addr);
-extern int mmb_service_start(MMB_CTX * this);
-
 static char *        optarg_so = "i:h";
 static struct option optarg_lo[] = {
     { "Interface",  1, NULL, 'i' },
