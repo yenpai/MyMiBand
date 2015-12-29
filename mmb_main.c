@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
         switch(opt)
         {
             case 'i':
-                if (!strncasecmp(optarg, "hci", 3))
+                if (!strncmp(optarg, "hci", 3))
                     hci_devba(atoi(optarg + 3), &adapter_addr);
                 else
                     str2ba(optarg, &adapter_addr);

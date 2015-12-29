@@ -7,7 +7,7 @@
 #include "evhr.h"
 
 typedef enum {
-    MMB_EV_UNKNOW       = 0x0000,
+    MMB_EV_DUMMY        = 0x0000,
     MMB_EV_SCAN_REQ     = 0x0201,
     MMB_EV_SCAN_RESP    = 0x0202,
 } MMB_EV;

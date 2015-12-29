@@ -18,7 +18,7 @@ static void read_cb(EVHR_EVENT * ev)
         if (len < (int) sizeof(data))
             break;
 
-        //printf("[MMB][EVENT] Read type:0x%04x, size:%lu\n", data.type, data.size);
+        printf("[MMB][EVENT] Read type:0x%04x, size:%lu\n", data.type, data.size);
 
         if (this->cb)
             this->cb(&data, this->cb_pdata);

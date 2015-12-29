@@ -61,7 +61,7 @@ typedef struct mmb_miband_ctx_s {
     struct mmb_realtime_data_s  realtime;
 
     struct evhr_event_s *       ev_ble;
-    struct evhr_event_s *       ev_timeout;
+    struct evhr_event_s *       ev_watchdog;
     
     /* for mmb_miband_led */
     struct evhr_event_s *       ev_led_timer;

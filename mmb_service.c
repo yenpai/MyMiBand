@@ -15,8 +15,10 @@ static void do_event_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
     EBLE_DEVICE * device;
     char addr[18];
 
-    assert(this && this->devices);
-    assert(data && data->buf);
+    assert(this);
+    assert(this->devices);
+    assert(data);
+    assert(data->buf);
 
     // Read Device Info
     device = data->buf;
@@ -59,6 +61,14 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void * pdata)
 
     switch (data->type)
     {
+        default:
+            printf("[MMB][EVENT] Unknow event! type[0x%04x].", data->type);
+            break;
+        
+        case MMB_EV_DUMMY:
+            /* Nothing */
+            break;
+
         case MMB_EV_SCAN_REQ:
             printf("[MMB][EVENT] MMB_EV_SCAN_REQ.\n");
             if ((ret = eble_adapter_scan(this->adapter, 5, adapter_scan_cb, this)) < 0)
@@ -70,15 +80,11 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void * pdata)
             do_event_scan_resp(this, data);
             break;
 
-        case MMB_EV_UNKNOW:
-        default:
-            printf("[MMB][EVENT] Unknow event! type[0x%04x].", data->type);
-            break;
     }
 
 }
 
-int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
+int mmb_service_init(MMB_CTX * this, bdaddr_t * bdaddr)
 {
     int ret = 0;
 
@@ -99,17 +105,17 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * addr)
         return -2;
     }
 
-    // Inital Adapter
-    if ((ret = eble_adapter_create(&this->adapter, addr)) != EBLE_RTN_SUCCESS)
-    {
-        printf("[MMB][SERVICE] ERR: eble_adapter_create failed! ret = %d\n", ret);
-        return -3;
-    }
-
     // Initial Devices
     if ((ret = qlist_create(&this->devices)) < 0)
     {
         printf("[MMB][SERVICE] ERR: qlist_create failed! ret = %d\n", ret);
+        return -3;
+    }
+
+    // Inital Adapter
+    if ((ret = eble_adapter_create(&this->adapter, bdaddr)) != EBLE_RTN_SUCCESS)
+    {
+        printf("[MMB][SERVICE] ERR: eble_adapter_create failed! ret = %d\n", ret);
         return -4;
     }
 
@@ -134,7 +140,8 @@ int mmb_service_start(MMB_CTX * this)
     while (1)
     {
         printf("[MMB][SERVICE] restart adapter.\n");
-        eble_adapter_reset(this->adapter);
+        if (eble_adapter_reset(this->adapter) == EBLE_RTN_FAILED)
+            printf("[MMB][SERVICE] restart adapter failed!\n");
 
         if ((ret = mmb_event_start(this->eventer, this->evhr, event_handle_cb, this)) < 0)
         {
