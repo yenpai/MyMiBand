@@ -139,6 +139,7 @@ int mmb_service_start(MMB_CTX * this)
 
     // Assert
     assert(this);
+    assert(this->evhr);
     assert(this->devices);
     assert(this->eventer);
     assert(this->adapter);
@@ -170,11 +171,8 @@ free_next_loop:
         
         eble_adapter_disconnect(this->adapter);
 
-        while (this->devices->counts > 0)
-        {
-            if ((device = qlist_shift(this->devices)) != NULL)
-                eble_device_free(device);
-        }
+        while ((device = qlist_shift(this->devices)) != NULL)
+            eble_device_free(device);
 
         mmb_event_stop(this->eventer);
 
