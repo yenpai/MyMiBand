@@ -5,6 +5,7 @@
 
 #include "evhr.h"
 #include "mmb_ctx.h"
+#include "mmb_debug.h"
 #include "mmb_miband.h"
 
 static void mmb_miband_reset_data(MMB_MIBAND * this)
@@ -25,12 +26,12 @@ static void do_task_connected(MMB_MIBAND * this)
 {
     int ret;
 
-    printf("[MMB][MIBAND][TASK] Connected Task Start.\n");
+    MMB_LOG("[MIBAND]", "Connected Task running ...");
 
     /* Auth User Data */
     if ((ret = mmb_miband_send_auth(this)) < 0)
     {
-        printf("[MMB][MIBAND][TASK] ERR: mmb_miband_send_auth failed! ret[%d]\n", ret);
+        MMB_LOG("[MIBAND]", "ERR: mmb_miband_send_auth failed! ret = %d", ret);
         goto error_hanlde;
     }
 
@@ -54,13 +55,13 @@ static void do_task_connected(MMB_MIBAND * this)
     /* LED mode */
     ret = mmb_miband_led_mode_change(this, 1);
 
-    printf("[MMB][MIBAND][TASK] Connected Task Finish.\n");
+    MMB_LOG("[MIBAND]", "Connected Task Finish.");
 
     return;
 
 error_hanlde:
 
-    printf("[MMB][MIBAND][TASK] ERR: Need to restart connect!\n");
+    MMB_LOG("[MIBAND]", "ERR: Connected Task failed! Need to restart connect!");
     mmb_miband_stop(this);
 }
 
@@ -76,14 +77,16 @@ static void ble_write_cb(EVHR_EVENT * ev)
     {
         if (getsockopt(ev->fd, SOL_SOCKET, SO_ERROR, &result, &result_len) < 0 || result != 0) {
             // Connect Error
-            printf("[MMB][MIBAND] ERR: Connect error, getsockopt result = %d, errno = %d\n", result, errno);
+            MMB_LOG("[MIBAND]", "ERR: Connect failed! " 
+                    "getsockopt res = %d, errno = %d", 
+                    result, errno);
             mmb_miband_stop(this);
             return;
         }
 
         // Connected
         this->status = MMB_STATUS_CONNECTED;
-        printf("[MMB][MIBAND] Connected.\n");
+        MMB_LOG("[MIBAND]", "Connected.");
 
         do_task_connected(this);
     }
@@ -122,7 +125,7 @@ static void ble_read_cb(EVHR_EVENT * ev)
             mmb_miband_op_notification(this, data.hnd, data.val, data.size);
             break;
         default:
-            printf("[MMB][MIBAND][OP] UNKNOW.\n");
+            MMB_DBG("[MIBAND][OP]", "Unknow opcode from MIBAND.");
             return;
     }
 
@@ -131,13 +134,13 @@ static void ble_read_cb(EVHR_EVENT * ev)
 
 static void ble_error_cb(EVHR_EVENT * ev)
 {
-    printf("[MMB][MIBAND] BLE Error!\n");
+    MMB_LOG("[MIBAND]", "BLE Error!");
     mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
 }
 
 static void watchdog_timeout_cb(EVHR_EVENT * ev)
 {
-    printf("[MMB][MIBAND] BLE timeout!\n");
+    MMB_LOG("[MIBAND]", "BLE timeout!");
     mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
 }
 
@@ -146,7 +149,7 @@ int mmb_miband_probe(EBLE_DEVICE * device)
     if (strncmp(device->eir.LocalName, "MI", 2) != 0)
         return -1;
 
-    printf("[MMB][MIBAND][PROBE] EIR LocalName[%s].\n", device->eir.LocalName);
+    MMB_LOG("[MIBAND]", "Probe by EIR LocalName[%s]", device->eir.LocalName);
 
     return 0;
 }
@@ -154,6 +157,8 @@ int mmb_miband_probe(EBLE_DEVICE * device)
 int mmb_miband_init(EBLE_DEVICE ** device)
 {
     MMB_MIBAND * this = NULL;
+    
+    MMB_LOG("[MIBAND]", "Initial process running ...");
 
     if ((this = malloc(sizeof(MMB_MIBAND))) == NULL)
         return -1;
@@ -173,8 +178,6 @@ int mmb_miband_init(EBLE_DEVICE ** device)
     strcpy((char *)this->user.alias, "RobinMI");
 
     mmb_miband_reset_data(this);
-    
-    printf("[MMB][MIBAND] Initial.\n");
 
     *device = &this->device;
     return 0;
@@ -182,10 +185,7 @@ int mmb_miband_init(EBLE_DEVICE ** device)
 
 int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr)
 {
-    char str[18];
-    ba2str(&this->device.addr, str);
-    
-    printf("[MMB][MIBAND][%s] Start.\n", str);
+    MMB_LOG("[MIBAND]", "Start process running ...");
 
     // Create BLE connect
     if (eble_device_connect(&this->device, adapter) != EBLE_RTN_SUCCESS)
@@ -233,6 +233,8 @@ int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr)
 
 int mmb_miband_stop(MMB_MIBAND * this)
 {
+    MMB_LOG("[MIBAND]", "Stop process running ...");
+
     if (this == NULL)
         return -1;
 
@@ -254,7 +256,8 @@ int mmb_miband_stop(MMB_MIBAND * this)
     eble_device_disconnect(&this->device);
 
     this->status = MMB_STATUS_STOPPED;
-    printf("[MMB][MIBAND] Stopped.\n");
+    
+    MMB_LOG("[MIBAND]", "Stop process finish");
 
     return 0;
 }

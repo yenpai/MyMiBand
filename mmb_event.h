@@ -31,7 +31,6 @@ typedef struct mmb_event_ctx_s {
 int mmb_event_init(MMB_EVENT ** this);
 int mmb_event_start(MMB_EVENT * this, EVHR_CTX * evhr, MMB_EVENT_CB cb, void * cb_pdata);
 int mmb_event_stop(MMB_EVENT * this);
-
 int mmb_event_send(MMB_EVENT * this, MMB_EVENT_TYPE type, void * data, size_t size);
 
 #endif
