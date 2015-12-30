@@ -73,7 +73,7 @@ typedef struct mmb_miband_ctx_s {
 /* mmb_miband.c */
 int mmb_miband_probe(EBLE_DEVICE * device);
 int mmb_miband_init(EBLE_DEVICE ** device);
-int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr);
+int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX evhr);
 int mmb_miband_stop(MMB_MIBAND * this);
 
 /* mmb_miband_att.c */
@@ -115,7 +115,7 @@ int mmb_miband_op_notification(MMB_MIBAND * this, uint16_t hnd, uint8_t *val, si
 
 /* mmb_miband_led.c */
 int mmb_miband_led_mode_change(MMB_MIBAND * this, int mode);
-int mmb_miband_led_start(MMB_MIBAND * this, EVHR_CTX * evhr);
+int mmb_miband_led_start(MMB_MIBAND * this, EVHR_CTX evhr);
 int mmb_miband_led_stop(MMB_MIBAND * this);
 
 #endif /* ifndef MMB_MIBAND_H_ */

@@ -19,7 +19,7 @@ static int led_rand_color()
     return colors[rand];
 }
 
-static void led_timer_cb(EVHR_EVENT * ev)
+static void led_timer_cb(EVHR_EVENT ev)
 {
     MMB_MIBAND * this = ev->cb_data;
     unsigned int next_sec = 0;
@@ -148,7 +148,7 @@ int mmb_miband_led_mode_change(MMB_MIBAND * this, int mode)
     return 0;
 }
 
-int mmb_miband_led_start(MMB_MIBAND * this, EVHR_CTX * evhr)
+int mmb_miband_led_start(MMB_MIBAND * this, EVHR_CTX evhr)
 {
 
     this->led_mode = 0;

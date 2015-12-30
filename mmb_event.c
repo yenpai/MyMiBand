@@ -7,7 +7,7 @@
 #include "mmb_util.h"
 #include "mmb_event.h"
 
-static void read_cb(EVHR_EVENT * ev)
+static void read_cb(EVHR_EVENT ev)
 {
     MMB_ASSERT(ev);
     MMB_ASSERT(ev->cb_data);
@@ -53,7 +53,7 @@ int mmb_event_init(MMB_EVENT ** this)
     return 0;
 }
 
-int mmb_event_start(MMB_EVENT * this, EVHR_CTX * evhr, MMB_EVENT_CB cb, void * cb_pdata)
+int mmb_event_start(MMB_EVENT * this, EVHR_CTX evhr, MMB_EVENT_CB cb, void * cb_pdata)
 {
     MMB_DBG("[EVENT]", "Start process running ...");
 

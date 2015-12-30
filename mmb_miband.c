@@ -65,7 +65,7 @@ error_hanlde:
     mmb_miband_stop(this);
 }
 
-static void ble_write_cb(EVHR_EVENT * ev)
+static void ble_write_cb(EVHR_EVENT ev)
 {
     MMB_MIBAND * this = ev->cb_data;
 
@@ -98,7 +98,7 @@ static void ble_write_cb(EVHR_EVENT * ev)
     mmb_miband_watchdog_kick(this);
 }
 
-static void ble_read_cb(EVHR_EVENT * ev)
+static void ble_read_cb(EVHR_EVENT ev)
 {
     
     MMB_MIBAND * this = ev->cb_data;
@@ -132,13 +132,13 @@ static void ble_read_cb(EVHR_EVENT * ev)
     mmb_miband_watchdog_kick(this);
 }
 
-static void ble_error_cb(EVHR_EVENT * ev)
+static void ble_error_cb(EVHR_EVENT ev)
 {
     MMB_LOG("[MIBAND]", "BLE Error!");
     mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
 }
 
-static void watchdog_timeout_cb(EVHR_EVENT * ev)
+static void watchdog_timeout_cb(EVHR_EVENT ev)
 {
     MMB_LOG("[MIBAND]", "BLE timeout!");
     mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
@@ -183,7 +183,7 @@ int mmb_miband_init(EBLE_DEVICE ** device)
     return 0;
 }
 
-int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr)
+int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX evhr)
 {
     MMB_LOG("[MIBAND]", "Start process running ...");
 
