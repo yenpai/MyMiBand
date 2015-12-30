@@ -8,7 +8,7 @@
 
 static void read_cb(EVHR_EVENT * ev)
 {
-    MMB_EVENT * this = ev->pdata;
+    MMB_EVENT * this = ev->cb_data;
     MMB_EVENT_DATA data;
     int len;
 
@@ -36,7 +36,7 @@ int mmb_event_init(MMB_EVENT ** this)
         return -1;
 
     obj->status = 0;
-    obj->ev = NULL;
+    obj->ev     = NULL;
     obj->sfd[0] = 0;
     obj->sfd[1] = 0;
 
@@ -86,13 +86,13 @@ int mmb_event_stop(MMB_EVENT * this)
     return 0;
 }
 
-int mmb_event_send(MMB_EVENT * this, uint16_t type, void * buf, size_t size)
+int mmb_event_send(MMB_EVENT * this, MMB_EVENT_TYPE type, void * ptr, size_t size)
 {
     MMB_EVENT_DATA data;
 
     data.type   = type;
     data.size   = size;
-    data.buf    = buf;
+    data.data   = ptr;
 
     printf("[MMB][EVENT] Send type:0x%04x, size:%lu\n", data.type, data.size);
 

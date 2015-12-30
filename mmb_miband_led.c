@@ -21,7 +21,7 @@ static int led_rand_color()
 
 static void led_timer_cb(EVHR_EVENT * ev)
 {
-    MMB_MIBAND * this = ev->pdata;
+    MMB_MIBAND * this = ev->cb_data;
     unsigned int next_sec = 0;
     unsigned int next_msec = 0;
     int color = MMB_LED_COLOR_OFF;

@@ -18,10 +18,10 @@ static void do_event_scan_resp(MMB_CTX * this, MMB_EVENT_DATA * data)
     assert(this);
     assert(this->devices);
     assert(data);
-    assert(data->buf);
+    assert(data->data);
 
     // Read Device Info
-    device = data->buf;
+    device = data->data;
     ba2str(&device->addr, addr);
     printf("[MMB][EVENT][SCAN][RESP] Device Name[%s], Addr[%s], Rssi[%d]\n", 
             device->eir.LocalName, addr, device->rssi);
@@ -51,7 +51,7 @@ free_and_exit:
 static void adapter_scan_cb(void * pdata, EBLE_DEVICE * device)
 {
     MMB_CTX * this = pdata;
-    mmb_event_send(this->eventer, MMB_EV_SCAN_RESP, device, sizeof(device));
+    mmb_event_send(this->eventer, MMB_EVENT_SCAN_RESP, device, sizeof(device));
 }
 
 static void event_handle_cb(MMB_EVENT_DATA * data, void * pdata)
@@ -65,17 +65,17 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void * pdata)
             printf("[MMB][EVENT] Unknow event! type[0x%04x].", data->type);
             break;
         
-        case MMB_EV_DUMMY:
+        case MMB_EVENT_DUMMY:
             /* Nothing */
             break;
 
-        case MMB_EV_SCAN_REQ:
+        case MMB_EVENT_SCAN_REQ:
             printf("[MMB][EVENT] MMB_EV_SCAN_REQ.\n");
             if ((ret = eble_adapter_scan(this->adapter, 5, adapter_scan_cb, this)) < 0)
                 printf("[MMB][EVENT] ERR: eble_adapter_scan failed! ret = %d.\n", ret);
             break;
 
-        case MMB_EV_SCAN_RESP:
+        case MMB_EVENT_SCAN_RESP:
             printf("[MMB][EVENT] MMB_EV_SCAN_RESP.\n");
             do_event_scan_resp(this, data);
             break;
@@ -87,6 +87,8 @@ static void event_handle_cb(MMB_EVENT_DATA * data, void * pdata)
 int mmb_service_init(MMB_CTX * this, bdaddr_t * bdaddr)
 {
     int ret = 0;
+
+    printf("[MMB][SERVICE] init.\n");
 
     // Default config
     memset(this, 0, sizeof(MMB_CTX));
@@ -113,13 +115,17 @@ int mmb_service_init(MMB_CTX * this, bdaddr_t * bdaddr)
     }
 
     // Inital Adapter
-    if ((ret = eble_adapter_create(&this->adapter, bdaddr)) != EBLE_RTN_SUCCESS)
+    if (eble_adapter_create(&this->adapter, bdaddr) != EBLE_RTN_SUCCESS)
     {
         printf("[MMB][SERVICE] ERR: eble_adapter_create failed! ret = %d\n", ret);
         return -4;
     }
 
-    printf("[MMB][SERVICE] initial.\n");
+    // Reset Adapter
+    if (eble_adapter_reset(this->adapter) != EBLE_RTN_SUCCESS)
+    {
+        printf("[MMB][SERVICE] ERR: eble_adapter_reset failed!\n");
+    }
 
     return 0;
 }
@@ -139,9 +145,6 @@ int mmb_service_start(MMB_CTX * this)
 
     while (1)
     {
-        printf("[MMB][SERVICE] restart adapter.\n");
-        if (eble_adapter_reset(this->adapter) == EBLE_RTN_FAILED)
-            printf("[MMB][SERVICE] restart adapter failed!\n");
 
         if ((ret = mmb_event_start(this->eventer, this->evhr, event_handle_cb, this)) < 0)
         {
@@ -156,7 +159,7 @@ int mmb_service_start(MMB_CTX * this)
         }
         
         // Start scan here...
-        mmb_event_send(this->eventer, MMB_EV_SCAN_REQ, NULL, 0);
+        mmb_event_send(this->eventer, MMB_EVENT_SCAN_REQ, NULL, 0);
 
         printf("[MMB][SERVICE] running.\n");
         evhr_dispatch(this->evhr);
@@ -175,6 +178,9 @@ free_next_loop:
 
         mmb_event_stop(this->eventer);
 
+        printf("[MMB][SERVICE] restart adapter.\n");
+        if (eble_adapter_reset(this->adapter) == EBLE_RTN_FAILED)
+            printf("[MMB][SERVICE] restart adapter failed!\n");
     }
 
     return 0;

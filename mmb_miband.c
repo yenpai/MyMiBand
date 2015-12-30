@@ -66,7 +66,7 @@ error_hanlde:
 
 static void ble_write_cb(EVHR_EVENT * ev)
 {
-    MMB_MIBAND * this = ev->pdata;
+    MMB_MIBAND * this = ev->cb_data;
 
     int result;
     socklen_t result_len = sizeof(result);
@@ -98,7 +98,7 @@ static void ble_write_cb(EVHR_EVENT * ev)
 static void ble_read_cb(EVHR_EVENT * ev)
 {
     
-    MMB_MIBAND * this = ev->pdata;
+    MMB_MIBAND * this = ev->cb_data;
     EBLE_ATTREAD_DATA data;
 
     if (eble_attread_data(&this->device, &data) != EBLE_RTN_SUCCESS)
@@ -132,13 +132,13 @@ static void ble_read_cb(EVHR_EVENT * ev)
 static void ble_error_cb(EVHR_EVENT * ev)
 {
     printf("[MMB][MIBAND] BLE Error!\n");
-    mmb_miband_stop((MMB_MIBAND *)ev->pdata);
+    mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
 }
 
-static void ble_watchdog_timeout_cb(EVHR_EVENT * ev)
+static void watchdog_timeout_cb(EVHR_EVENT * ev)
 {
     printf("[MMB][MIBAND] BLE timeout!\n");
-    mmb_miband_stop((MMB_MIBAND *)ev->pdata);
+    mmb_miband_stop((MMB_MIBAND *)ev->cb_data);
 }
 
 int mmb_miband_probe(EBLE_DEVICE * device)
@@ -207,7 +207,7 @@ int mmb_miband_start(MMB_MIBAND * this, EBLE_ADAPTER * adapter, EVHR_CTX * evhr)
     // Bind Watchdog timer event
     if ((this->ev_watchdog = evhr_event_add_timer_periodic(
             evhr, MMB_MIBAND_TIMEOUT_SEC, 0,
-            this, ble_watchdog_timeout_cb)) == NULL)
+            this, watchdog_timeout_cb)) == NULL)
     {
         printf("[MMB][MIBAND] ERR: Bind WatchDog timer event failed!\n");
         mmb_miband_stop(this);
