@@ -80,8 +80,6 @@ static void led_timer_cb(EVHR_EVENT ev)
         // notify-trigger
         case 3:
 
-            printf("led index = %d\n", this->led_index);
-
             send = 1;
 
             if (this->led_index == 0)

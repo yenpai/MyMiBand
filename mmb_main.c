@@ -19,7 +19,6 @@ static struct option optarg_lo[] = {
 int main(int argc, char *argv[])
 {
     int ret, opt;
-    MMB_CTX mmb;
     bdaddr_t adapter_addr;
 
     // Default mac addr
@@ -43,14 +42,14 @@ int main(int argc, char *argv[])
     }
 
     // Init Service
-    if ((ret = mmb_service_init(&mmb, &adapter_addr)) < 0)
+    if ((ret = mmb_service_init(&adapter_addr)) < 0)
     {
         printf("mmb_service_init failed! ret[%d]", ret);
         return -1;
     }
 
     // Start Service
-    if ((ret = mmb_service_start(&mmb)) < 0)
+    if ((ret = mmb_service_start()) < 0)
     {
         printf("mmb_service_start failed! ret[%d]", ret);
         return -2;

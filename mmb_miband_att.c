@@ -200,6 +200,7 @@ int mmb_miband_op_read_resp(MMB_MIBAND * UNUSED(this), uint8_t *UNUSED(val), siz
 
 int mmb_miband_op_write_resp(MMB_MIBAND * UNUSED(this))
 {
+    printf("[MMB][MIBAND][OP][WriteResp]\n");
     return 0;
 }
 
@@ -243,7 +244,7 @@ int mmb_miband_send_auth(MMB_MIBAND * this)
     // Generate User Info Code, CRC8(0~18 Byte) ^ MAC[last byte]
     this->user.code = crc8(0x00, ptr, size - 1) ^ (this->device.addr.b[0] & 0xFF);
 
-    ret = eble_attsend_write_req(&this->device, MIBAND_PF_HND_USER, ptr, size);
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_USER, ptr, size);
     if (ret < 0)
         return ret;
 
@@ -259,12 +260,12 @@ int mmb_miband_send_realtime_notify(MMB_MIBAND * this, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    //ret = mmb_miband_write_req(mmb->ev_ble->fd, MIBAND_PF_HND_REALTIME, value, 2);
-    //if (ret < 0)
-    //    return ret;
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_REALTIME, value, 2);
+    if (ret < 0)
+        return ret;
 
     // Disable Notify
-    ret = eble_attsend_write_req(&this->device, MIBAND_PF_HND_REALTIME_NOTIFY, value, 2);
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_REALTIME_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -280,12 +281,12 @@ int mmb_miband_send_sensor_notify(MMB_MIBAND * this, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    ret = eble_attsend_write_req(&this->device, MIBAND_PF_HND_SENSOR, value, 2);
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_SENSOR, value, 2);
     if (ret < 0)
         return ret;
 
     // Disable Notify
-    ret = eble_attsend_write_req(&this->device, MIBAND_PF_HND_SENSOR_NOTIFY, value, 2);
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_SENSOR_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -300,11 +301,11 @@ int mmb_miband_send_battery_notify(MMB_MIBAND * this, uint8_t enable)
     if (enable)
         value[0] = enable;
 
-    //ret = mmb_miband_write_req(mmb->ev_ble->fd, MIBAND_PF_HND_BATTERY, value, 2);
-    //if (ret < 0)
-    //    return ret;
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_BATTERY, value, 2);
+    if (ret < 0)
+        return ret;
 
-    ret = eble_attsend_write_req(&this->device, MIBAND_PF_HND_BATTERY_NOTIFY, value, 2);
+    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_BATTERY_NOTIFY, value, 2);
     if (ret < 0)
         return ret;
 
@@ -322,7 +323,7 @@ int mmb_miband_send_vibration(MMB_MIBAND * this, uint8_t mode)
 
     uint8_t buf[1];
     buf[0] = mode;
-    return eble_attsend_write_cmd(&this->device, MIBAND_PF_HND_VIBRATION, buf, 1);
+    return eble_gatt_send_write_cmd(&this->device, MIBAND_PF_HND_VIBRATION, buf, 1);
 }
 
 int mmb_miband_send_ledcolor(MMB_MIBAND * this, uint32_t color)
@@ -334,11 +335,11 @@ int mmb_miband_send_ledcolor(MMB_MIBAND * this, uint32_t color)
     buf[3] = 0xFF & color >> 16; // B
     buf[4] = 0xFF & color >> 24; // onoff
 
-    return eble_attsend_write_req(&this->device, MIBAND_PF_HND_CONTROL, buf, 5);
+    return eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_CONTROL, buf, 5);
 }
 
 int mmb_miband_send_battery_read(MMB_MIBAND * this)
 {
-    return eble_attsend_read_type_req(&this->device, MIBAND_PF_HND_BATTERY, MIBAND_PF_UUID_BATTERY);
+    return eble_gatt_send_read_type_req(&this->device, MIBAND_PF_HND_BATTERY, MIBAND_PF_UUID_BATTERY);
 }
 
