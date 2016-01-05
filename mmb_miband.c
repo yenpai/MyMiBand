@@ -23,6 +23,8 @@ static void keeplive_timeout_cb(EVHR_EVENT ev)
 {
     MMB_MIBAND * this = ev->cb_data;
     mmb_miband_send_battery_read(this);
+    mmb_miband_send_sensor_notify(this, 1);
+    mmb_miband_send_realtime_notify(this, 1);
 }
 
 static void mmb_miband_keeplive_kick(MMB_MIBAND * this)
@@ -36,8 +38,6 @@ static void do_task_connected(MMB_MIBAND * this)
     int ret;
 
     MMB_LOG("[MIBAND]", "Connected Task running ...");
-
-    sleep(2);
 
     /* Auth User Data */
     if ((ret = mmb_miband_send_auth(this)) < 0)

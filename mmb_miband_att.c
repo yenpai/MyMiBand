@@ -200,7 +200,7 @@ int mmb_miband_op_read_resp(MMB_MIBAND * UNUSED(this), uint8_t *UNUSED(val), siz
 
 int mmb_miband_op_write_resp(MMB_MIBAND * UNUSED(this))
 {
-    printf("[MMB][MIBAND][OP][WriteResp]\n");
+    //printf("[MMB][MIBAND][OP][WriteResp]\n");
     return 0;
 }
 
@@ -260,9 +260,9 @@ int mmb_miband_send_realtime_notify(MMB_MIBAND * this, uint8_t enable)
         value[0] = enable;
 
     // Disable Data
-    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_REALTIME, value, 2);
-    if (ret < 0)
-        return ret;
+    //ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_REALTIME, value, 2);
+    //if (ret < 0)
+    //    return ret;
 
     // Disable Notify
     ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_REALTIME_NOTIFY, value, 2);
@@ -301,9 +301,9 @@ int mmb_miband_send_battery_notify(MMB_MIBAND * this, uint8_t enable)
     if (enable)
         value[0] = enable;
 
-    ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_BATTERY, value, 2);
-    if (ret < 0)
-        return ret;
+    //ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_BATTERY, value, 2);
+    //if (ret < 0)
+    //    return ret;
 
     ret = eble_gatt_send_write_req(&this->device, MIBAND_PF_HND_BATTERY_NOTIFY, value, 2);
     if (ret < 0)

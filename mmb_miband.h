@@ -9,7 +9,7 @@
 #include "evhr.h"
 #include "eble.h"
 
-#define MMB_MIBAND_KEEPLIVE_SEC             5
+#define MMB_MIBAND_KEEPLIVE_SEC             30
 
 #define MMB_BATTERY_STATUS_LOW              1
 #define MMB_BATTERY_STATUS_CHARGING         2
