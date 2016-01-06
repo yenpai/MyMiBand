@@ -54,7 +54,6 @@ typedef struct mmb_miband_ctx_s {
     
     struct eble_device_ctx_s    device;
     
-    //int                         status;
     struct mmb_user_data_s      user;
     struct mmb_battery_data_s   battery;
     struct mmb_sensor_data_s    sensor;

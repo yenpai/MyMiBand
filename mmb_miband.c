@@ -22,15 +22,18 @@ static void mmb_miband_reset_data(MMB_MIBAND * this)
 static void keeplive_timeout_cb(EVHR_EVENT ev)
 {
     MMB_MIBAND * this = ev->cb_data;
-    mmb_miband_send_battery_read(this);
-    mmb_miband_send_sensor_notify(this, 1);
+    
+    /* Enable all notify */
+    mmb_miband_send_sensor_notify(this, 2);
     mmb_miband_send_realtime_notify(this, 1);
-}
+    mmb_miband_send_battery_notify(this, 1);
 
-static void mmb_miband_keeplive_kick(MMB_MIBAND * this)
-{
+    /* Update all information */
+    mmb_miband_send_battery_read(this);
+    
+    /* rebind timer event once */
     evhr_event_set_timer(
-            this->ev_keeplive, MMB_MIBAND_KEEPLIVE_SEC, 0, 0);
+            this->ev_keeplive, MMB_MIBAND_KEEPLIVE_SEC, 0, 1);
 }
 
 static void do_task_connected(MMB_MIBAND * this)
@@ -55,28 +58,22 @@ static void do_task_connected(MMB_MIBAND * this)
     ret = mmb_miband_send_ledcolor(this, MMB_LED_COLOR_OFF);
     ret = mmb_miband_send_vibration(this, MMB_VIBRATION_STOP);
 
-    /* Enable all notify */
-    ret = mmb_miband_send_sensor_notify(this, 1);
-    ret = mmb_miband_send_realtime_notify(this, 1);
-    ret = mmb_miband_send_battery_notify(this, 1);
-
-    /* Update all information */
-    ret = mmb_miband_send_battery_read(this);
-
     // Bind keeplive timer event
-    if ((this->ev_keeplive = evhr_event_add_timer_periodic(
-            g_mmb_ctx->evhr, MMB_MIBAND_KEEPLIVE_SEC, 0,
+    if ((this->ev_keeplive = evhr_event_add_timer_once(
+            g_mmb_ctx->evhr, 0, 0,
             this, keeplive_timeout_cb)) == NULL)
     {
         printf("[MMB][MIBAND] ERR: Bind WatchDog timer event failed!\n");
     }
 
+#if 0
     // Start LED control
     if (mmb_miband_led_start(this, g_mmb_ctx->evhr) < 0)
     {
         printf("[MMB][MIBAND] ERR: Start MIBAND LED Control failed!\n");
     }
     ret = mmb_miband_led_mode_change(this, 1);
+#endif
 
     MMB_LOG("[MIBAND]", "Connected Task Finish.");
 
@@ -125,29 +122,29 @@ static void ble_read_cb(EVHR_EVENT ev)
     MMB_MIBAND * this = ev->cb_data;
     eble_gatt_data_t data;
 
-    if (eble_gatt_recv_data(&this->device, &data) != EBLE_RTN_SUCCESS)
-        return;
-
-    switch (data.opcode)
+    while (eble_gatt_recv_data(&this->device, &data) == EBLE_RTN_SUCCESS)
     {
-        case EBLE_GATT_OPCODE_ERROR:
-            mmb_miband_op_error(this, data.hnd, data.error_code);
-            break;
-        case EBLE_GATT_OPCODE_READ_TYPE_RESP:
-            mmb_miband_op_read_type_resp(this, data.hnd, data.val, data.size);
-            break;
-        case EBLE_GATT_OPCODE_READ_RESP:
-            mmb_miband_op_read_resp(this, data.val, data.size);
-            break;
-        case EBLE_GATT_OPCODE_WRITE_RESP:
-            mmb_miband_op_write_resp(this);
-            break;
-        case EBLE_GATT_OPCODE_NOTIFICATION:
-            mmb_miband_op_notification(this, data.hnd, data.val, data.size);
-            break;
-        default:
-            MMB_DBG("[MIBAND][OP]", "Unknow opcode from MIBAND.");
-            return;
+        switch (data.opcode)
+        {
+            case EBLE_GATT_OPCODE_ERROR:
+                mmb_miband_op_error(this, data.hnd, data.error_code);
+                break;
+            case EBLE_GATT_OPCODE_READ_TYPE_RESP:
+                mmb_miband_op_read_type_resp(this, data.hnd, data.val, data.size);
+                break;
+            case EBLE_GATT_OPCODE_READ_RESP:
+                mmb_miband_op_read_resp(this, data.val, data.size);
+                break;
+            case EBLE_GATT_OPCODE_WRITE_RESP:
+                mmb_miband_op_write_resp(this);
+                break;
+            case EBLE_GATT_OPCODE_NOTIFICATION:
+                mmb_miband_op_notification(this, data.hnd, data.val, data.size);
+                break;
+            default:
+                MMB_DBG("[MIBAND][OP]", "Unknow opcode from MIBAND.");
+                return;
+        }
     }
 }
 
@@ -221,7 +218,7 @@ int mmb_miband_start(MMB_MIBAND * this, EBleAdapter adapter, EVHR_CTX evhr)
         return -2;
     }
 
-    printf("[MMB][MIBAND] Connecting.\n");
+    MMB_LOG("[MIBAND]", "Connecting ...");
 
     return 0;
 }
